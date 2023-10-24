@@ -3,7 +3,6 @@ from collections import defaultdict
 from itertools import product
 
 import pandas as pd
-from openbabel import pybel
 from rdkit import Chem, rdBase
 from rdkit.Chem import rdFMCS
 from rdkit.Chem import rdRGroupDecomposition as rdRGD
@@ -12,7 +11,6 @@ from rdkit.Chem.rdchem import EditableMol
 from rgroupinterm.utils.sanifix import AdjustAromaticNs
 
 rdBase.DisableLog('rdApp.*')
-pybel.ob.obErrorLog.SetOutputLevel(0)
 
 
 class EnumRGroups():
@@ -26,12 +24,13 @@ class EnumRGroups():
         columns (str): column names of columns containing r-groups
     """
 
-    def __init__(self):
+    def __init__(self, stereocenters):
         """The init."""
 
         self.keep_stereochemistry = False
         self.multiple = False
         self.columns = ['R1']
+        self.stereocenters = stereocenters
 
     def generate_intermediates(self,
                                pair: list[Chem.rdchem.Mol]) -> pd.DataFrame:
@@ -168,11 +167,11 @@ class EnumRGroups():
                 if welded_mol:
                     self.df_interm.at[index,
                                       'Intermediate'] = Chem.MolToSmiles(
-                                          welded_mol, False)
+                                          welded_mol)
                 else:
                     self.df_interm.at[index, 'Intermediate'] = None
-            except AttributeError:
-                pass
+            # except AttributeError:
+            #     pass
             except IndexError:
                 pass
             except Chem.rdchem.AtomKekulizeException:
@@ -198,9 +197,12 @@ class EnumRGroups():
             map_num = atom.GetAtomMapNum()
             if map_num > 0:
                 join_dict[map_num].append(atom)
+                if atom.HasProp("SourceMol"):
+                    print(atom.GetIntProp("SourceMol"))
 
         # loop over the bond between atom and dummy atom of r-group and save bond type
         bond_order_dict = defaultdict(list)
+        chiral_tag_dict = {}
         for idx, atom_list in join_dict.items():
             if len(atom_list) == 2:
                 atm_1, atm_2 = atom_list
@@ -214,7 +216,6 @@ class EnumRGroups():
                 bond_order_dict[idx].append(atm_2.GetBonds()[0].GetBondType())
                 bond_order_dict[idx].append(atm_3.GetBonds()[0].GetBondType())
                 bond_order_dict[idx].append(atm_4.GetBonds()[0].GetBondType())
-
         # transfer the atom maps to the neighbor atoms
         for idx, atom_list in join_dict.items():
             if len(atom_list) == 2:
@@ -241,7 +242,10 @@ class EnumRGroups():
                 nbr_3.SetAtomMapNum(idx)
                 nbr_4 = [x.GetOtherAtom(atm_4) for x in atm_4.GetBonds()][0]
                 nbr_4.SetAtomMapNum(idx)
-
+            if nbr_2.HasProp("SourceMol"):
+                chiral_tag_dict[idx] = self.stereocenters[nbr_2.GetIntProp("SourceMol")][idx]
+            else:
+                chiral_tag_dict[idx] = Chem.rdchem.ChiralType.CHI_UNSPECIFIED
         # remove the dummy atoms
         new_mol = Chem.DeleteSubstructs(input_mol, Chem.MolFromSmarts('[#0]'))
 
@@ -266,9 +270,12 @@ class EnumRGroups():
                 start_atm, end_atm1, end_atm2, end_atm3 = atom_list
                 em.AddBond(start_atm, end_atm1, order=bond_order_dict[idx][0])
                 em.AddBond(start_atm, end_atm2, order=bond_order_dict[idx][1])
-                em.AddBond(start_atm, end_atm3, order=bond_order_dict[idx][2])
+                em.AddBond(start_atm, end_atm3, order=bond_order_dict[idx][2])     
 
         combined_mol = em.GetMol()
+
+        for idx, atom_list in bond_join_dict.items():
+            combined_mol.GetAtomWithIdx(atom_list[0]).SetChiralTag(chiral_tag_dict[idx])
 
         # remove the AtomMapNum values
         for atom in combined_mol.GetAtoms():
