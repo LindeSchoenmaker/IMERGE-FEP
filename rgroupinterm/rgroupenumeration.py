@@ -24,13 +24,11 @@ class EnumRGroups():
         columns (str): column names of columns containing r-groups
     """
 
-    def __init__(self, stereocenters):
+    def __init__(self):
         """The init."""
-
         self.keep_stereochemistry = False
         self.multiple = False
         self.columns = ['R1']
-        self.stereocenters = stereocenters
 
     def generate_intermediates(self,
                                pair: list[Chem.rdchem.Mol]) -> pd.DataFrame:
@@ -62,6 +60,12 @@ class EnumRGroups():
             df_rgroup (pd.DataFrame): dataframe with molecule objects for Core, R1, ... Rn
         """
         # make aromatic bonds explicit
+        for i, mol in enumerate(self.pair):
+            Chem.Kekulize(mol, clearAromaticFlags=True)
+            for atom in mol.GetAtoms():
+                atom.SetIntProp("SourceAtomIdx",atom.GetIdx())
+                atom.SetIntProp("SourceMol",i)
+        
         for mol in self.pair:
             Chem.Kekulize(mol, clearAromaticFlags=True)
 
@@ -81,6 +85,15 @@ class EnumRGroups():
                                        asRows=False)
         self.df_rgroup = pd.DataFrame(res)
 
+        self.stereocenters = defaultdict(dict)
+        # need to do twice because core only keeps atom dictionary of first input
+        for i, mol in enumerate(self.pair):
+            res_core = self.df_rgroup['Core'][i] 
+            res_core_copy = Chem.Mol(res_core) # otherwise problem with attachment point connected to multiple groups
+            mapping_dict = self._get_source_mapping(res_core_copy)
+            for key, value in mapping_dict.items():
+                self.stereocenters[i][key] = mol.GetAtomWithIdx(value).GetChiralTag()
+
         #TODO check if does anything
         # adjust aromatic Ns to [nH] if needed if core is not a valid SMILES
         res_core = self.df_rgroup['Core'][0]
@@ -94,7 +107,7 @@ class EnumRGroups():
             self.multiple = True
             self.columns = self.df_rgroup.columns[1:]  # update column names
 
-        # remove duplicate r-groups
+        # # remove duplicate r-groups
         if self.multiple:
             same_dict = defaultdict(
                 set,
@@ -131,6 +144,33 @@ class EnumRGroups():
                     1:]  # update r-group column names
 
         return self.df_rgroup
+
+
+    def _get_source_mapping(self, input_mol):
+        join_dict = {}
+        for atom in input_mol.GetAtoms():
+            map_num = atom.GetAtomMapNum()
+            if map_num > 0:
+                join_dict[map_num] = (atom)
+
+        # transfer the atom maps to the neighbor atoms
+        for idx, atom in join_dict.items():
+            nbr_1 = [x.GetOtherAtom(atom) for x in atom.GetBonds()][0]
+            nbr_1.SetAtomMapNum(idx)
+
+        # remove the dummy atoms
+        new_mol = Chem.DeleteSubstructs(input_mol, Chem.MolFromSmarts('[#0]'))
+
+        # get the new atoms with AtomMapNum, these will be connected
+        source_atom_dict = {}
+        for atom in new_mol.GetAtoms():
+            map_num = atom.GetAtomMapNum()
+            if map_num > 0:
+                if atom.HasProp("SourceAtomIdx"):
+                    source_atom_dict[map_num] = atom.GetIntProp("SourceAtomIdx")
+
+        return source_atom_dict
+
 
     def enumerate_rgroups(self) -> pd.DataFrame:
         """Enumerate all possible r-group combinations
@@ -246,6 +286,7 @@ class EnumRGroups():
                 chiral_tag_dict[idx] = self.stereocenters[nbr_2.GetIntProp("SourceMol")][idx]
             else:
                 chiral_tag_dict[idx] = Chem.rdchem.ChiralType.CHI_UNSPECIFIED
+        print(chiral_tag_dict)
         # remove the dummy atoms
         new_mol = Chem.DeleteSubstructs(input_mol, Chem.MolFromSmarts('[#0]'))
 
