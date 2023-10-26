@@ -41,7 +41,7 @@ def plot_highlighted(liga, ligb, all_intermediates, core):
     # rgroup decomposition
     groups,_ = rdRGroupDecomposition.RGroupDecompose([qcore],mms,asSmiles=False,asRows=True)
 
-    return Image(draw_multiple(mms,groups,qcore,tuple(groups[0].keys())[1:],nPerRow=4,subImageSize=(300,250)))
+    return Image(draw_multiple(mms,groups,qcore,tuple(groups[0].keys())[1:],nPerRow=3,subImageSize=(300,250)))
 
 def highlight_rgroups(mol,row,core,width=350,height=200,
                       fillRings=True,legend="",
@@ -222,7 +222,7 @@ def draw_multiple(ms,groups,qcore,lbls,legends=None,nPerRow=4,subImageSize=(250,
         if row == 0:
             legend = 'Original'
         else:
-            legend = 'Intermediate'
+            legend = f'Intermediate {i-1}'
         png = highlight_rgroups(m,groups[i],qcore,lbls=lbls,legend=legend,
                                width=subImageSize[0],height=subImageSize[1])
         bio = BytesIO(png)
