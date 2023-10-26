@@ -65,9 +65,6 @@ class EnumRGroups():
             for atom in mol.GetAtoms():
                 atom.SetIntProp("SourceAtomIdx",atom.GetIdx())
                 atom.SetIntProp("SourceMol",i)
-        
-        for mol in self.pair:
-            Chem.Kekulize(mol, clearAromaticFlags=True)
 
         #TODO possible to use different comparison functions
         # find maximimum common substructure
@@ -78,6 +75,27 @@ class EnumRGroups():
                              timeout=2)
         core = Chem.MolFromSmarts(res.smartsString)
 
+        matches0 = list(self.pair[0].GetSubstructMatch(core))
+        matches1 = list(self.pair[1].GetSubstructMatch(core))
+
+
+        for i, atom in enumerate(self.pair[1].GetAtoms()):
+            if i in matches1:
+                index = matches1.index(i)
+                atom.SetIntProp("SourceAtomIdx2",self.pair[0].GetAtoms()[matches0[index]].GetIdx())
+
+        for i, atom in enumerate(self.pair[0].GetAtoms()):
+            if i in matches0:
+                index = matches0.index(i)
+                atom.SetIntProp("SourceAtomIdx2",self.pair[0].GetAtoms()[matches0[index]].GetIdx())
+
+        for i, mol in enumerate(self.pair):
+            j = 2000
+            for atom in mol.GetAtoms():
+                if not atom.HasProp("SourceAtomIdx2"):
+                    atom.SetIntProp("SourceAtomIdx2",j)
+                    j+=1
+
         # create dataframe with columns Core, R1, ... Rn
         res, _ = rdRGD.RGroupDecompose([core],
                                        self.pair,
@@ -86,6 +104,7 @@ class EnumRGroups():
         self.df_rgroup = pd.DataFrame(res)
 
         self.stereocenters = defaultdict(dict)
+        self.bondorder = defaultdict(dict)
         # need to do twice because core only keeps atom dictionary of first input
         for i, mol in enumerate(self.pair):
             res_core = self.df_rgroup['Core'][i] 
@@ -93,6 +112,13 @@ class EnumRGroups():
             mapping_dict = self._get_source_mapping(res_core_copy)
             for key, value in mapping_dict.items():
                 self.stereocenters[i][key] = mol.GetAtomWithIdx(value).GetChiralTag()
+                bond_order = []
+                for bond in mol.GetAtomWithIdx(value).GetBonds():
+                    if bond.GetBeginAtomIdx() == value: #only keep order of source id of atoms connected
+                        bond_order.append(bond.GetEndAtom().GetIntProp("SourceAtomIdx2"))
+                    else:
+                         bond_order.append(bond.GetBeginAtom().GetIntProp("SourceAtomIdx2"))
+                self.bondorder[i][key] = bond_order
 
         #TODO check if does anything
         # adjust aromatic Ns to [nH] if needed if core is not a valid SMILES
@@ -237,12 +263,11 @@ class EnumRGroups():
             map_num = atom.GetAtomMapNum()
             if map_num > 0:
                 join_dict[map_num].append(atom)
-                if atom.HasProp("SourceMol"):
-                    print(atom.GetIntProp("SourceMol"))
 
         # loop over the bond between atom and dummy atom of r-group and save bond type
         bond_order_dict = defaultdict(list)
         chiral_tag_dict = {}
+        source_bond_order_dict = {}
         for idx, atom_list in join_dict.items():
             if len(atom_list) == 2:
                 atm_1, atm_2 = atom_list
@@ -284,9 +309,10 @@ class EnumRGroups():
                 nbr_4.SetAtomMapNum(idx)
             if nbr_2.HasProp("SourceMol"):
                 chiral_tag_dict[idx] = self.stereocenters[nbr_2.GetIntProp("SourceMol")][idx]
+                source_bond_order_dict[idx] = self.bondorder[nbr_2.GetIntProp("SourceMol")][idx]
             else:
                 chiral_tag_dict[idx] = Chem.rdchem.ChiralType.CHI_UNSPECIFIED
-        print(chiral_tag_dict)
+                source_bond_order_dict[idx] = None
         # remove the dummy atoms
         new_mol = Chem.DeleteSubstructs(input_mol, Chem.MolFromSmarts('[#0]'))
 
@@ -313,9 +339,35 @@ class EnumRGroups():
                 em.AddBond(start_atm, end_atm2, order=bond_order_dict[idx][1])
                 em.AddBond(start_atm, end_atm3, order=bond_order_dict[idx][2])     
 
-        combined_mol = em.GetMol()
+        mol_new = em.GetMol()
 
+        rw_mol = Chem.RWMol(mol_new)
         for idx, atom_list in bond_join_dict.items():
+            if chiral_tag_dict[idx] == Chem.rdchem.ChiralType.CHI_UNSPECIFIED:
+                continue
+            bond_info = []
+            bond_order_curr = []
+            for bond in rw_mol.GetAtomWithIdx(atom_list[0]).GetBonds():
+                if bond.GetBeginAtomIdx() == atom_list[0]: #only keep order of source id of atoms connected
+                    new_id = bond.GetEndAtomIdx()
+                else:
+                    new_id = bond.GetBeginAtomIdx()
+                try:
+                    source_id = rw_mol.GetAtomWithIdx(new_id).GetIntProp("SourceAtomIdx2")
+                    if source_id not in bond_order_curr:
+                        bond_order_curr.append(source_id)
+                except:
+                    pass
+                
+                bond_info.append((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), bond.GetBondType()))
+                rw_mol.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
+            order = [source_bond_order_dict[idx].index(source_id) for source_id in bond_order_curr]
+            for i in order:
+                rw_mol.AddBond(*bond_info[i])
+
+        combined_mol = rw_mol.GetMol()
+
+        for idx, atom_list in bond_join_dict.items():    
             combined_mol.GetAtomWithIdx(atom_list[0]).SetChiralTag(chiral_tag_dict[idx])
 
         # remove the AtomMapNum values
@@ -353,7 +405,7 @@ class EnumRGroups():
                 Chem.SanitizeMol(mol)
             self.df_interm['Exists'] = self.df_interm.apply(
                 lambda row: row.Intermediate in map(
-                    Chem.MolToSmiles, self.pair, [False] * len(self.pair)),
+                    Chem.MolToSmiles, self.pair),
                 axis=1)
             self.df_interm = self.df_interm[self.df_interm['Exists'] == False]
             self.df_interm = self.df_interm.drop(columns=['Exists'])
