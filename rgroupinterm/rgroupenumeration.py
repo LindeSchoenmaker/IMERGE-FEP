@@ -1,3 +1,5 @@
+# setting chirality based on https://www.valencekjell.com/posts/2021-10-15-chiral-templating/index.html
+
 import itertools
 from collections import defaultdict
 from itertools import product
@@ -19,14 +21,12 @@ class EnumRGroups():
     This class enumerates all combinations of R-groups for a molecule pair.
 
     Attributes:
-        keep_stereochemistry (bool): whether to keep stereocenters in same confirmation or not
         multiple (bool): if multiple r-groups have been found for the molecule pair
         columns (str): column names of columns containing r-groups
     """
 
     def __init__(self):
         """The init."""
-        self.keep_stereochemistry = False
         self.multiple = False
         self.columns = ['R1']
 
@@ -75,26 +75,34 @@ class EnumRGroups():
                              timeout=2)
         core = Chem.MolFromSmarts(res.smartsString)
 
-        matches0 = list(self.pair[0].GetSubstructMatch(core))
-        matches1 = list(self.pair[1].GetSubstructMatch(core))
-
-
-        for i, atom in enumerate(self.pair[1].GetAtoms()):
-            if i in matches1:
-                index = matches1.index(i)
-                atom.SetIntProp("SourceAtomIdx2",self.pair[0].GetAtoms()[matches0[index]].GetIdx())
-
+        # set SourceAtomIdx of atoms in the core to the same number
+        matches = [list(mol.GetSubstructMatch(core)) for mol in self.pair]
+       
+       # set SourceAtomIdx of atoms in the core of the first molecule
+        highest_idx = 0
         for i, atom in enumerate(self.pair[0].GetAtoms()):
-            if i in matches0:
-                index = matches0.index(i)
-                atom.SetIntProp("SourceAtomIdx2",self.pair[0].GetAtoms()[matches0[index]].GetIdx())
+            if i in matches[0]:
+                index = matches[0].index(i)
+                sourceidx = self.pair[0].GetAtoms()[matches[0][index]].GetIdx()
+                atom.SetIntProp("SourceAtomIdxSameCore", sourceidx)
+                if sourceidx > highest_idx:
+                    highest_idx = sourceidx
 
+        # Set those same SourceAtomIdx for the core of the second molecule
+        for i, atom in enumerate(self.pair[1].GetAtoms()):
+            if i in matches[1]:
+                index = matches[1].index(i)
+                sourceidx = self.pair[0].GetAtoms()[matches[0][index]].GetIdx()
+                atom.SetIntProp("SourceAtomIdxSameCore", sourceidx)
+                if sourceidx > highest_idx:
+                    highest_idx = sourceidx
+
+        # give R-group atoms a unique SourceAtomIdx
         for i, mol in enumerate(self.pair):
-            j = 2000
             for atom in mol.GetAtoms():
-                if not atom.HasProp("SourceAtomIdx2"):
-                    atom.SetIntProp("SourceAtomIdx2",j)
-                    j+=1
+                if not atom.HasProp("SourceAtomIdxSameCore"):
+                    highest_idx += 1
+                    atom.SetIntProp("SourceAtomIdxSameCore",highest_idx)
 
         # create dataframe with columns Core, R1, ... Rn
         res, _ = rdRGD.RGroupDecompose([core],
@@ -104,8 +112,10 @@ class EnumRGroups():
         self.df_rgroup = pd.DataFrame(res)
 
         self.stereocenters = defaultdict(dict)
-        self.bondorder = defaultdict(dict)
-        # need to do twice because core only keeps atom dictionary of first input
+        # dict with at each r-group branching off point the order of the bonds (used for setting chirality)
+        self.bondorder = defaultdict(dict) 
+        # need to do twice because core has different atom idx based on input
+        #TODO may not be necessary anymore to do this twice as also have version with same Idx now
         for i, mol in enumerate(self.pair):
             res_core = self.df_rgroup['Core'][i] 
             res_core_copy = Chem.Mol(res_core) # otherwise problem with attachment point connected to multiple groups
@@ -114,10 +124,10 @@ class EnumRGroups():
                 self.stereocenters[i][key] = mol.GetAtomWithIdx(value).GetChiralTag()
                 bond_order = []
                 for bond in mol.GetAtomWithIdx(value).GetBonds():
-                    if bond.GetBeginAtomIdx() == value: #only keep order of source id of atoms connected
-                        bond_order.append(bond.GetEndAtom().GetIntProp("SourceAtomIdx2"))
+                    if bond.GetBeginAtomIdx() == value: #only keep order of source id of atoms connected (not the pair as done in example)
+                        bond_order.append(bond.GetEndAtom().GetIntProp("SourceAtomIdxSameCore"))
                     else:
-                         bond_order.append(bond.GetBeginAtom().GetIntProp("SourceAtomIdx2"))
+                         bond_order.append(bond.GetBeginAtom().GetIntProp("SourceAtomIdxSameCore"))
                 self.bondorder[i][key] = bond_order
 
         #TODO check if does anything
@@ -266,8 +276,8 @@ class EnumRGroups():
 
         # loop over the bond between atom and dummy atom of r-group and save bond type
         bond_order_dict = defaultdict(list)
-        chiral_tag_dict = {}
-        source_bond_order_dict = {}
+        chiral_tag_dict = {} # dict to store chiral tag of the source of the branching off points
+        source_bond_order_dict = {} # dict to store bond order in the source of the branching off points
         for idx, atom_list in join_dict.items():
             if len(atom_list) == 2:
                 atm_1, atm_2 = atom_list
@@ -341,6 +351,7 @@ class EnumRGroups():
 
         mol_new = em.GetMol()
 
+        # make edible molecule to set bond orders (used for correctly applying chiral tag)
         rw_mol = Chem.RWMol(mol_new)
         for idx, atom_list in bond_join_dict.items():
             if chiral_tag_dict[idx] == Chem.rdchem.ChiralType.CHI_UNSPECIFIED:
@@ -352,21 +363,20 @@ class EnumRGroups():
                     new_id = bond.GetEndAtomIdx()
                 else:
                     new_id = bond.GetBeginAtomIdx()
-                try:
-                    source_id = rw_mol.GetAtomWithIdx(new_id).GetIntProp("SourceAtomIdx2")
+                if rw_mol.GetAtomWithIdx(new_id).HasProp("SourceAtomIdxSameCore"):
+                    source_id = rw_mol.GetAtomWithIdx(new_id).GetIntProp("SourceAtomIdxSameCore") # use original source idx
                     if source_id not in bond_order_curr:
-                        bond_order_curr.append(source_id)
-                except:
-                    pass
-                
+                        bond_order_curr.append(source_id) # save current bond order to be used to retrieve information
                 bond_info.append((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), bond.GetBondType()))
                 rw_mol.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
+            # set new bond order
             order = [source_bond_order_dict[idx].index(source_id) for source_id in bond_order_curr]
             for i in order:
                 rw_mol.AddBond(*bond_info[i])
 
         combined_mol = rw_mol.GetMol()
 
+        # set chiral tags
         for idx, atom_list in bond_join_dict.items():    
             combined_mol.GetAtomWithIdx(atom_list[0]).SetChiralTag(chiral_tag_dict[idx])
 
