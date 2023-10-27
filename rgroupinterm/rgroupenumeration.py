@@ -410,8 +410,6 @@ class EnumRGroups():
                         atom.SetNoImplicit(True)
                         nbrs = list(atom.GetNeighbors())
                         nonHs = [nbr.GetAtomicNum() != 1 for nbr in nbrs]
-                        numnonHs = sum(nonHs)
-                        print(numnonHs)
                         bonds = list(atom.GetBonds())
                         bondtypes = [bond.GetBondType() for bond in bonds]
                         i = 0
@@ -420,12 +418,11 @@ class EnumRGroups():
                                 i += 1
                             elif bondtype == Chem.BondType.TRIPLE:
                                 i += 2
-                        atom.SetNumExplicitHs(3 - numnonHs - i + atom.GetFormalCharge())
+                        atom.SetNumExplicitHs(3 - len(nonHs) - i + atom.GetFormalCharge())
                     if atom.GetAtomicNum() == 6 and not atom.IsInRing(): # for carbon atoms
                         atom.SetNoImplicit(True)
                         nbrs = list(atom.GetNeighbors())
                         nonHs = [nbr.GetAtomicNum() != 1 for nbr in nbrs]
-                        numnonHs = sum(nonHs)
                         bonds = list(atom.GetBonds())
                         bondtypes = [bond.GetBondType() for bond in bonds]
                         i = 0
@@ -434,7 +431,7 @@ class EnumRGroups():
                                 i += 1
                             elif bondtype == Chem.BondType.TRIPLE:
                                 i += 2
-                        atom.SetNumExplicitHs(4 - numnonHs - i + atom.GetFormalCharge())
+                        atom.SetNumExplicitHs(4 - len(nonHs) - i + atom.GetFormalCharge())
                 combined_mol_fixed = combined_mol
                 # adapted_smiles = Chem.MolToSmiles(combined_mol).replace('-', '').replace(
                 #         '([H])', '').replace('[H]', '')
@@ -445,7 +442,6 @@ class EnumRGroups():
                 print(f'invalid molecule: {Chem.MolToSmiles(combined_mol)}')
             if Chem.MolFromSmiles(Chem.MolToSmiles(combined_mol)) is None:
                 print(f'invalid molecule: {Chem.MolToSmiles(combined_mol)}')
-                combined_mol = Chem.MolFromSmiles("CCCC") # to see the other invalid molecules after first error
             else:
                 combined_mol = combined_mol_fixed
 
