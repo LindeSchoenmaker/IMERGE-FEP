@@ -1,4 +1,6 @@
+import glob
 import unittest  # The test framework
+from itertools import combinations
 
 import pandas as pd
 from rdkit import Chem, rdBase
@@ -48,10 +50,28 @@ class Test_EnumerateRGroups(unittest.TestCase):
         self.assertTrue(None not in generated_interm)
         self.assertEqual(len(generated_interm), len(expected_interm)) # check length
         self.assertTrue(subms_expected, [True] * 6) # check if generated intermediates are same as expected
-        self.assertTrue(subms_unexpected, [False] * 6)
+        self.assertTrue(subms_unexpected, [False] * 6) # check if previous test is valid
 
     def same_mol(self, mol1, mol2):
         return mol1.HasSubstructMatch(mol2) and mol2.HasSubstructMatch(mol1)
+
+    def test_enumerate_eg5(self):
+        # get molecule pairs
+        dir = 'eg5'
+        path = "/zfsdata/data/linde/fep_intermediate_generation/ligands/" 
+        addendum = '*.sdf'
+        mols = []
+        for file in glob.glob(path+dir+'/'+addendum):
+            mol = Chem.rdmolfiles.SDMolSupplier(file)[0]
+            mols.append(mol)
+
+        for i, (liga, ligb) in enumerate(combinations(mols, 2)):
+            generator = EnumRGroups()
+            df_interm, core = generator.generate_intermediates([liga, ligb])
+            generated_interm = df_interm['Intermediate'].tolist()
+            self.assertTrue(None not in generated_interm)
+            # self.assertEqual(len(generated_interm),2**(len(generator.columns))-2)
+
 
 if __name__ == '__main__':
     unittest.main()
