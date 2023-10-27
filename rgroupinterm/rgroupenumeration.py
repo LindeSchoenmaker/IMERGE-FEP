@@ -63,8 +63,8 @@ class EnumRGroups():
         for i, mol in enumerate(self.pair):
             Chem.Kekulize(mol, clearAromaticFlags=True)
             for atom in mol.GetAtoms():
-                atom.SetIntProp("SourceAtomIdx",atom.GetIdx())
-                atom.SetIntProp("SourceMol",i)
+                atom.SetIntProp("SourceAtomIdx", atom.GetIdx())
+                atom.SetIntProp("SourceMol", i)
 
         #TODO possible to use different comparison functions
         # find maximimum common substructure
@@ -77,8 +77,8 @@ class EnumRGroups():
 
         # set SourceAtomIdx of atoms in the core to the same number
         matches = [list(mol.GetSubstructMatch(core)) for mol in self.pair]
-       
-       # set SourceAtomIdx of atoms in the core of the first molecule
+
+        # set SourceAtomIdx of atoms in the core of the first molecule
         highest_idx = 0
         for i, atom in enumerate(self.pair[0].GetAtoms()):
             if i in matches[0]:
@@ -102,7 +102,7 @@ class EnumRGroups():
             for atom in mol.GetAtoms():
                 if not atom.HasProp("SourceAtomIdxSameCore"):
                     highest_idx += 1
-                    atom.SetIntProp("SourceAtomIdxSameCore",highest_idx)
+                    atom.SetIntProp("SourceAtomIdxSameCore", highest_idx)
 
         # create dataframe with columns Core, R1, ... Rn
         res, _ = rdRGD.RGroupDecompose([core],
@@ -113,21 +113,27 @@ class EnumRGroups():
 
         self.stereocenters = defaultdict(dict)
         # dict with at each r-group branching off point the order of the bonds (used for setting chirality)
-        self.bondorder = defaultdict(dict) 
+        self.bondorder = defaultdict(dict)
         # need to do twice because core has different atom idx based on input
         #TODO may not be necessary anymore to do this twice as also have version with same Idx now
         for i, mol in enumerate(self.pair):
-            res_core = self.df_rgroup['Core'][i] 
-            res_core_copy = Chem.Mol(res_core) # otherwise problem with attachment point connected to multiple groups
+            res_core = self.df_rgroup['Core'][i]
+            res_core_copy = Chem.Mol(
+                res_core
+            )  # otherwise problem with attachment point connected to multiple groups
             mapping_dict = self._get_source_mapping(res_core_copy)
             for key, value in mapping_dict.items():
-                self.stereocenters[i][key] = mol.GetAtomWithIdx(value).GetChiralTag()
+                self.stereocenters[i][key] = mol.GetAtomWithIdx(
+                    value).GetChiralTag()
                 bond_order = []
                 for bond in mol.GetAtomWithIdx(value).GetBonds():
-                    if bond.GetBeginAtomIdx() == value: #only keep order of source id of atoms connected (not the pair as done in example)
-                        bond_order.append(bond.GetEndAtom().GetIntProp("SourceAtomIdxSameCore"))
+                    if bond.GetBeginAtomIdx(
+                    ) == value:  #only keep order of source id of atoms connected (not the pair as done in example)
+                        bond_order.append(bond.GetEndAtom().GetIntProp(
+                            "SourceAtomIdxSameCore"))
                     else:
-                         bond_order.append(bond.GetBeginAtom().GetIntProp("SourceAtomIdxSameCore"))
+                        bond_order.append(bond.GetBeginAtom().GetIntProp(
+                            "SourceAtomIdxSameCore"))
                 self.bondorder[i][key] = bond_order
 
         #TODO check if does anything
@@ -181,7 +187,6 @@ class EnumRGroups():
 
         return self.df_rgroup
 
-
     def _get_source_mapping(self, input_mol):
         join_dict = {}
         for atom in input_mol.GetAtoms():
@@ -203,10 +208,10 @@ class EnumRGroups():
             map_num = atom.GetAtomMapNum()
             if map_num > 0:
                 if atom.HasProp("SourceAtomIdx"):
-                    source_atom_dict[map_num] = atom.GetIntProp("SourceAtomIdx")
+                    source_atom_dict[map_num] = atom.GetIntProp(
+                        "SourceAtomIdx")
 
         return source_atom_dict
-
 
     def enumerate_rgroups(self) -> pd.DataFrame:
         """Enumerate all possible r-group combinations
@@ -241,9 +246,8 @@ class EnumRGroups():
                     mol_to_weld = Chem.CombineMols(mol_to_weld, row[column])
                 welded_mol = self._weld_r_groups(mol_to_weld)
                 if welded_mol:
-                    self.df_interm.at[index,
-                                      'Intermediate'] = Chem.MolToSmiles(
-                                          welded_mol)
+                    self.df_interm.at[
+                        index, 'Intermediate'] = Chem.MolToSmiles(welded_mol)
                 else:
                     self.df_interm.at[index, 'Intermediate'] = None
             # except AttributeError:
@@ -253,8 +257,7 @@ class EnumRGroups():
             except Chem.rdchem.AtomKekulizeException:
                 pass
 
-    def _weld_r_groups(self,
-                       input_mol: Chem.rdchem.Mol) -> Chem.rdchem.Mol:
+    def _weld_r_groups(self, input_mol: Chem.rdchem.Mol) -> Chem.rdchem.Mol:
         """RDKit manipulations to put r-groups back on a core.
 
         Adapted from 
@@ -276,8 +279,10 @@ class EnumRGroups():
 
         # loop over the bond between atom and dummy atom of r-group and save bond type
         bond_order_dict = defaultdict(list)
-        chiral_tag_dict = {} # dict to store chiral tag of the source of the branching off points
-        source_bond_order_dict = {} # dict to store bond order in the source of the branching off points
+        chiral_tag_dict = {
+        }  # dict to store chiral tag of the source of the branching off points
+        source_bond_order_dict = {
+        }  # dict to store bond order in the source of the branching off points
         for idx, atom_list in join_dict.items():
             if len(atom_list) == 2:
                 atm_1, atm_2 = atom_list
@@ -318,8 +323,10 @@ class EnumRGroups():
                 nbr_4 = [x.GetOtherAtom(atm_4) for x in atm_4.GetBonds()][0]
                 nbr_4.SetAtomMapNum(idx)
             if nbr_2.HasProp("SourceMol"):
-                chiral_tag_dict[idx] = self.stereocenters[nbr_2.GetIntProp("SourceMol")][idx]
-                source_bond_order_dict[idx] = self.bondorder[nbr_2.GetIntProp("SourceMol")][idx]
+                chiral_tag_dict[idx] = self.stereocenters[nbr_2.GetIntProp(
+                    "SourceMol")][idx]
+                source_bond_order_dict[idx] = self.bondorder[nbr_2.GetIntProp(
+                    "SourceMol")][idx]
             else:
                 chiral_tag_dict[idx] = Chem.rdchem.ChiralType.CHI_UNSPECIFIED
                 source_bond_order_dict[idx] = None
@@ -347,7 +354,7 @@ class EnumRGroups():
                 start_atm, end_atm1, end_atm2, end_atm3 = atom_list
                 em.AddBond(start_atm, end_atm1, order=bond_order_dict[idx][0])
                 em.AddBond(start_atm, end_atm2, order=bond_order_dict[idx][1])
-                em.AddBond(start_atm, end_atm3, order=bond_order_dict[idx][2])     
+                em.AddBond(start_atm, end_atm3, order=bond_order_dict[idx][2])
 
         mol_new = em.GetMol()
 
@@ -359,37 +366,93 @@ class EnumRGroups():
             bond_info = []
             bond_order_curr = []
             for bond in rw_mol.GetAtomWithIdx(atom_list[0]).GetBonds():
-                if bond.GetBeginAtomIdx() == atom_list[0]: #only keep order of source id of atoms connected
+                if bond.GetBeginAtomIdx() == atom_list[
+                        0]:  #only keep order of source id of atoms connected
                     new_id = bond.GetEndAtomIdx()
                 else:
                     new_id = bond.GetBeginAtomIdx()
-                if rw_mol.GetAtomWithIdx(new_id).HasProp("SourceAtomIdxSameCore"):
-                    source_id = rw_mol.GetAtomWithIdx(new_id).GetIntProp("SourceAtomIdxSameCore") # use original source idx
+                if rw_mol.GetAtomWithIdx(new_id).HasProp(
+                        "SourceAtomIdxSameCore"):
+                    source_id = rw_mol.GetAtomWithIdx(new_id).GetIntProp(
+                        "SourceAtomIdxSameCore")  # use original source idx
                     if source_id not in bond_order_curr:
-                        bond_order_curr.append(source_id) # save current bond order to be used to retrieve information
-                bond_info.append((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), bond.GetBondType()))
+                        bond_order_curr.append(
+                            source_id
+                        )  # save current bond order to be used to retrieve information
+                bond_info.append((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(),
+                                  bond.GetBondType()))
                 rw_mol.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
             # set new bond order
-            order = [source_bond_order_dict[idx].index(source_id) for source_id in bond_order_curr]
+            order = [
+                source_bond_order_dict[idx].index(source_id)
+                for source_id in bond_order_curr
+            ]
             for i in order:
                 rw_mol.AddBond(*bond_info[i])
 
         combined_mol = rw_mol.GetMol()
 
         # set chiral tags
-        for idx, atom_list in bond_join_dict.items():    
-            combined_mol.GetAtomWithIdx(atom_list[0]).SetChiralTag(chiral_tag_dict[idx])
+        for idx, atom_list in bond_join_dict.items():
+            combined_mol.GetAtomWithIdx(atom_list[0]).SetChiralTag(
+                chiral_tag_dict[idx])
+
+        # remove single bond tokens and explicit hydrogen tokens in case molecule is invalid
+        if Chem.MolFromSmiles(Chem.MolToSmiles(combined_mol)) is None:
+            combined_mol_fixed = Chem.MolFromSmiles(
+                Chem.MolToSmiles(combined_mol).replace('-', '').replace(
+                    '([H])', '').replace('[H]', ''))
+            if combined_mol_fixed is None:
+                for atom in combined_mol.GetAtoms(): 
+                    map_num = atom.GetAtomMapNum()
+                    if map_num == 0: continue
+                    if atom.GetAtomicNum() == 7 and not atom.IsInRing(): # for nitrogen atoms
+                        atom.SetNoImplicit(True)
+                        nbrs = list(atom.GetNeighbors())
+                        nonHs = [nbr.GetAtomicNum() != 1 for nbr in nbrs]
+                        numnonHs = sum(nonHs)
+                        print(numnonHs)
+                        bonds = list(atom.GetBonds())
+                        bondtypes = [bond.GetBondType() for bond in bonds]
+                        i = 0
+                        for bondtype in bondtypes:
+                            if bondtype == Chem.BondType.DOUBLE:
+                                i += 1
+                            elif bondtype == Chem.BondType.TRIPLE:
+                                i += 2
+                        atom.SetNumExplicitHs(3 - numnonHs - i + atom.GetFormalCharge())
+                    if atom.GetAtomicNum() == 6 and not atom.IsInRing(): # for carbon atoms
+                        atom.SetNoImplicit(True)
+                        nbrs = list(atom.GetNeighbors())
+                        nonHs = [nbr.GetAtomicNum() != 1 for nbr in nbrs]
+                        numnonHs = sum(nonHs)
+                        bonds = list(atom.GetBonds())
+                        bondtypes = [bond.GetBondType() for bond in bonds]
+                        i = 0
+                        for bondtype in bondtypes:
+                            if bondtype == Chem.BondType.DOUBLE:
+                                i += 1
+                            elif bondtype == Chem.BondType.TRIPLE:
+                                i += 2
+                        atom.SetNumExplicitHs(4 - numnonHs - i + atom.GetFormalCharge())
+                combined_mol_fixed = combined_mol
+                # adapted_smiles = Chem.MolToSmiles(combined_mol).replace('-', '').replace(
+                #         '([H])', '').replace('[H]', '')
+                # adapted_smiles = re.sub(r"\[NH\d?", '[N', adapted_smiles)
+                # adapted_smiles = re.sub(r"\[CH\d?", '[C', adapted_smiles)
+                # combined_mol_fixed = Chem.MolFromSmiles(adapted_smiles)
+            if combined_mol_fixed is None:
+                print(f'invalid molecule: {Chem.MolToSmiles(combined_mol)}')
+            if Chem.MolFromSmiles(Chem.MolToSmiles(combined_mol)) is None:
+                print(f'invalid molecule: {Chem.MolToSmiles(combined_mol)}')
+                combined_mol = Chem.MolFromSmiles("CCCC") # to see the other invalid molecules after first error
+            else:
+                combined_mol = combined_mol_fixed
 
         # remove the AtomMapNum values
         for atom in combined_mol.GetAtoms():
             atom.SetAtomMapNum(0)
-
-        # remove single bond tokens and explicit hydrogen tokens in case molecule is invalid
-        if Chem.MolFromSmiles(Chem.MolToSmiles(combined_mol)) is None:
-            combined_mol = Chem.MolFromSmiles(
-                Chem.MolToSmiles(combined_mol).replace('-', '').replace(
-                    '([H])', '').replace('[H]', ''))
-
+            
         # remove explicit Hs
         final_mol = Chem.RemoveHs(combined_mol)
 
@@ -414,8 +477,8 @@ class EnumRGroups():
             for mol in self.pair:
                 Chem.SanitizeMol(mol)
             self.df_interm['Exists'] = self.df_interm.apply(
-                lambda row: row.Intermediate in map(
-                    Chem.MolToSmiles, self.pair),
+                lambda row: row.Intermediate in map(Chem.MolToSmiles, self.pair
+                                                    ),
                 axis=1)
             self.df_interm = self.df_interm[self.df_interm['Exists'] == False]
             self.df_interm = self.df_interm.drop(columns=['Exists'])
