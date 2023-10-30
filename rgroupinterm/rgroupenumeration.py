@@ -79,30 +79,14 @@ class EnumRGroups():
         matches = [list(mol.GetSubstructMatch(core)) for mol in self.pair]
 
         # set SourceAtomIdx of atoms in the core of the first molecule
-        highest_idx = 0
-        for i, atom in enumerate(self.pair[0].GetAtoms()):
-            if i in matches[0]:
-                index = matches[0].index(i)
-                sourceidx = self.pair[0].GetAtoms()[matches[0][index]].GetIdx()
-                atom.SetIntProp("SourceAtomIdxSameCore", sourceidx)
-                if sourceidx > highest_idx:
-                    highest_idx = sourceidx
-
-        # Set those same SourceAtomIdx for the core of the second molecule
-        for i, atom in enumerate(self.pair[1].GetAtoms()):
-            if i in matches[1]:
-                index = matches[1].index(i)
-                sourceidx = self.pair[0].GetAtoms()[matches[0][index]].GetIdx()
-                atom.SetIntProp("SourceAtomIdxSameCore", sourceidx)
-                if sourceidx > highest_idx:
-                    highest_idx = sourceidx
-
-        # give R-group atoms a unique SourceAtomIdx
+        highest_idx = len(matches[0])
         for i, mol in enumerate(self.pair):
+            for j, k in enumerate(matches[i]):
+                mol.GetAtomWithIdx(k).SetProp('SourceAtomIdxSameCore', str(j))
             for atom in mol.GetAtoms():
-                if not atom.HasProp("SourceAtomIdxSameCore"):
+                if not atom.HasProp('SourceAtomIdxSameCore'):
                     highest_idx += 1
-                    atom.SetIntProp("SourceAtomIdxSameCore", highest_idx)
+                    atom.SetProp('SourceAtomIdxSameCore', str(highest_idx))
 
         # create dataframe with columns Core, R1, ... Rn
         res, _ = rdRGD.RGroupDecompose([core],
@@ -400,8 +384,7 @@ class EnumRGroups():
         # remove single bond tokens and explicit hydrogen tokens in case molecule is invalid
         if Chem.MolFromSmiles(Chem.MolToSmiles(combined_mol)) is None:
             combined_mol_fixed = Chem.MolFromSmiles(
-                Chem.MolToSmiles(combined_mol).replace('-', '').replace(
-                    '([H])', '').replace('[H]', ''))
+                Chem.MolToSmiles(combined_mol).replace('-', ''))
             if combined_mol_fixed is None:
                 for atom in combined_mol.GetAtoms(): 
                     map_num = atom.GetAtomMapNum()

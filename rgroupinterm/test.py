@@ -67,10 +67,15 @@ class Test_EnumerateRGroups(unittest.TestCase):
 
         for i, (liga, ligb) in enumerate(combinations(mols, 2)):
             generator = EnumRGroups()
+            liga = Chem.Mol(liga)
+            ligb = Chem.Mol(ligb)
             df_interm, core = generator.generate_intermediates([liga, ligb])
             generated_interm = df_interm['Intermediate'].tolist()
             self.assertTrue(None not in generated_interm)
             # self.assertEqual(len(generated_interm),2**(len(generator.columns))-2)
+            if len(generated_interm) != 2**(len(generator.columns))-2:
+                print([Chem.MolToSmiles(x) for x in [liga, ligb]])
+
 
 
 if __name__ == '__main__':
