@@ -14,6 +14,42 @@ IPythonConsole.molSize=(450,350)
 rdkit.RDLogger.DisableLog('rdApp.warning')
 rdDepictor.SetPreferCoordGen(True)
 
+
+def fix_Hs(mol):
+    for atom in mol.GetAtoms():
+        if atom.GetAtomicNum(
+        ) == 7 and not atom.IsInRing():  # for nitrogen atoms
+            atom.SetNoImplicit(True)
+            nbrs = list(atom.GetNeighbors())
+            nonHs = [nbr.GetAtomicNum() != 1 for nbr in nbrs]
+            bonds = list(atom.GetBonds())
+            bondtypes = [bond.GetBondType() for bond in bonds]
+            i = 0
+            for bondtype in bondtypes:
+                if bondtype == Chem.BondType.DOUBLE:
+                    i += 1
+                elif bondtype == Chem.BondType.TRIPLE:
+                    i += 2
+            atom.SetNumExplicitHs(3 - len(nonHs) - i +
+                                    atom.GetFormalCharge())
+        if atom.GetAtomicNum(
+        ) == 6 and not atom.IsInRing():  # for carbon atoms
+            atom.SetNoImplicit(True)
+            nbrs = list(atom.GetNeighbors())
+            nonHs = [nbr.GetAtomicNum() != 1 for nbr in nbrs]
+            bonds = list(atom.GetBonds())
+            bondtypes = [bond.GetBondType() for bond in bonds]
+            i = 0
+            for bondtype in bondtypes:
+                if bondtype == Chem.BondType.DOUBLE:
+                    i += 1
+                elif bondtype == Chem.BondType.TRIPLE:
+                    i += 2
+            atom.SetNumExplicitHs(4 - len(nonHs) - i +
+                                    atom.GetFormalCharge())
+    return mol
+
+
 def plot_highlighted(liga, ligb, all_intermediates, core):
     # combine edge ligands and intermediates
     ms = [liga, ligb]
@@ -22,26 +58,37 @@ def plot_highlighted(liga, ligb, all_intermediates, core):
     # prepare core
     rdDepictor.SetPreferCoordGen(True)
     rdDepictor.Compute2DCoords(core)
+
+    # core = Chem.DeleteSubstructs(core, Chem.MolFromSmarts('[#0]'))
+    core = fix_Hs(core)
     Chem.SanitizeMol(core)
-    core = Chem.DeleteSubstructs(core, Chem.MolFromSmarts('[#0]'))
 
     # convert the dummy atoms in the scaffold into query atoms that match anything
     ps = Chem.AdjustQueryParameters.NoAdjustments()
-    ps.makeDummiesQueries=True
-    qcore = Chem.AdjustQueryProperties(core,ps)
+    ps.makeDummiesQueries = True
+    qcore = Chem.AdjustQueryProperties(core, ps)
 
     # prepare ligands
-    mhs = [Chem.AddHs(x,addCoords=True) for x in ms]
+    mhs = [Chem.AddHs(x, addCoords=True) for x in ms]
     mms = [x for x in mhs if x.HasSubstructMatch(qcore)]
     for m in mms:
         for atom in m.GetAtoms():
-            atom.SetIntProp("SourceAtomIdx",atom.GetIdx())
+            atom.SetIntProp("SourceAtomIdx", atom.GetIdx())
     ms[0].HasSubstructMatch(qcore)
 
     # rgroup decomposition
-    groups,_ = rdRGroupDecomposition.RGroupDecompose([qcore],mms,asSmiles=False,asRows=True)
+    groups, _ = rdRGroupDecomposition.RGroupDecompose([qcore],
+                                                      mms,
+                                                      asSmiles=False,
+                                                      asRows=True)
 
-    return Image(draw_multiple(mms,groups,qcore,tuple(groups[0].keys())[1:],nPerRow=3,subImageSize=(300,250)))
+    return Image(
+        draw_multiple(mms,
+                      groups,
+                      qcore,
+                      tuple(groups[0].keys())[1:],
+                      nPerRow=3,
+                      subImageSize=(300, 250)))
 
 def highlight_rgroups(mol,row,core,width=350,height=200,
                       fillRings=True,legend="",
@@ -52,12 +99,12 @@ def highlight_rgroups(mol,row,core,width=350,height=200,
     core = Chem.Mol(core)
 
     # -------------------------------------------
-    # include the atom map numbers in the substructure search in order to 
+    # include the atom map numbers in the substructure search in order to
     # try to ensure a good alignment of the molecule to symmetric cores
     for at in core.GetAtoms():
         if at.GetAtomMapNum():
             at.ExpandQuery(rdqueries.IsotopeEqualsQueryAtom(200+at.GetAtomMapNum()))
-            
+
     for lbl in row:
         if lbl=='Core':
             continue
@@ -90,11 +137,11 @@ def highlight_rgroups(mol,row,core,width=350,height=200,
                 at.ClearProp("_OrigIsotope")
             else:
                 at.SetIsotope(0)
-      
+
     # ------------------
     #  set up our colormap
     #   the three choices here are all "colorblind" colormaps
-    
+
     # "Tol" colormap from https://davidmathlogic.com/colorblind
     colors = [(51,34,136),(17,119,51),(68,170,153),(136,204,238),(221,204,119),(204,102,119),(170,68,153),(136,34,85)]
     # "IBM" colormap from https://davidmathlogic.com/colorblind
@@ -103,7 +150,7 @@ def highlight_rgroups(mol,row,core,width=350,height=200,
     colors = [(230,159,0),(86,180,233),(0,158,115),(240,228,66),(0,114,178),(213,94,0),(204,121,167)]
     for i,x in enumerate(colors):
         colors[i] = tuple(y/255 for y in x)
-  
+
     #----------------------
     # Identify and store which atoms, bonds, and rings we'll be highlighting
     highlightatoms = defaultdict(list)
@@ -112,7 +159,7 @@ def highlight_rgroups(mol,row,core,width=350,height=200,
     widthmults = {}
 
     rings = []
-    for i,lbl in enumerate(lbls):    
+    for i,lbl in enumerate(lbls):
         color = colors[i%len(colors)]
         rquery = row[lbl]
         Chem.GetSSSR(rquery)
@@ -147,7 +194,7 @@ def highlight_rgroups(mol,row,core,width=350,height=200,
     d2d = rdMolDraw2D.MolDraw2DCairo(width,height)
     dos = d2d.drawOptions()
     dos.useBWAtomPalette()
-                
+
     #----------------------
     # if we are filling rings, go ahead and do that first so that we draw
     # the molecule on top of the filled rings
@@ -184,7 +231,7 @@ def draw_multiple_org(ms,groups,qcore,lbls,legends=None,nPerRow=4,subImageSize=(
     nCols = nPerRow
     imgSize = (subImageSize[0]*nCols,subImageSize[1]*nRows)
     res = pilImage.new('RGB',imgSize)
-    
+
     for i,m in enumerate(ms):
         col = i%nPerRow
         row = i//nPerRow
@@ -202,32 +249,43 @@ def draw_multiple_org(ms,groups,qcore,lbls,legends=None,nPerRow=4,subImageSize=(
     return bio.getvalue()
 
 
-def draw_multiple(ms,groups,qcore,lbls,legends=None,nPerRow=4,subImageSize=(250,200)):
+def draw_multiple(ms,
+                  groups,
+                  qcore,
+                  lbls,
+                  legends=None,
+                  nPerRow=4,
+                  subImageSize=(250, 200)):
     nInt = len(ms) - 2
-    nRows = 1 + nInt//nPerRow
-    if nInt%nPerRow:
-        nRows+=1
+    nRows = 1 + nInt // nPerRow
+    if nInt % nPerRow:
+        nRows += 1
     nCols = nPerRow
-    imgSize = (subImageSize[0]*nCols,subImageSize[1]*nRows)
-    res = pilImage.new('RGB',imgSize)
-    
-    for i,m in enumerate(ms):
+    imgSize = (subImageSize[0] * nCols, subImageSize[1] * nRows)
+    res = pilImage.new('RGB', imgSize)
+
+    for i, m in enumerate(ms):
         if i < 2:
             a = i
-            row = a//nPerRow
+            row = a // nPerRow
         else:
             a = i - 2
-            row = a//nPerRow + 1
-        col = a%nPerRow
+            row = a // nPerRow + 1
+        col = a % nPerRow
         if row == 0:
             legend = 'Original'
         else:
             legend = f'Intermediate {i-1}'
-        png = highlight_rgroups(m,groups[i],qcore,lbls=lbls,legend=legend,
-                               width=subImageSize[0],height=subImageSize[1])
+        png = highlight_rgroups(m,
+                                groups[i],
+                                qcore,
+                                lbls=lbls,
+                                legend=legend,
+                                width=subImageSize[0],
+                                height=subImageSize[1])
         bio = BytesIO(png)
         img = pilImage.open(bio)
-        res.paste(img,box=(col*subImageSize[0],row*subImageSize[1]))
+        res.paste(img, box=(col * subImageSize[0], row * subImageSize[1]))
     bio = BytesIO()
-    res.save(bio,format='PNG')
+    res.save(bio, format='PNG')
     return bio.getvalue()
