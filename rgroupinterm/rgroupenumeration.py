@@ -180,7 +180,7 @@ class EnumRGroups():
         # set multiple to true if more than 1 r-group
         if len(self.df_rgroup.columns) > 2:
             self.multiple = True
-            self.columns = self.df_rgroup.columns[1:]  # update column names
+            self.columns = self.df_rgroup.columns[1:]  #TODO change to take everything that starts with R # update column names
 
         # # remove duplicate r-groups
         if self.multiple:

@@ -12,7 +12,7 @@ rdBase.DisableLog('rdApp.*')
 
 class Test_EnumerateRGroups(unittest.TestCase):
 
-    def test_enumerate(self):
+    def test_enumerate_chirality_1R(self):
         generator = EnumRGroups()
         smiles = [
             'CC(C)(C)c1ccc2c(c1)[C@H]1OCCC[C@H]1[C@H](c1ccc(O)cc1)N2',
@@ -25,12 +25,12 @@ class Test_EnumerateRGroups(unittest.TestCase):
         self.assertTrue(isinstance(core, Chem.rdchem.Mol))
 
         expected_interm = [
-            'Oc1ccc(C2Nc3ccc(C(F)(F)F)cc3C3OCCCC23)cc1',
-            'CC(C)(C)c1ccc2c(c1)C1OC(C[NH3+])CCC1C(c1ccc(O)cc1)N2',
-            '[NH3+]CC1CCC2C(c3ccc(O)cc3)Nc3ccc(C(F)(F)F)cc3C2O1',
-            'CC(C)(C)c1ccc2c(c1)C1OCCCC1C(c1ccccc1)N2',
-            'FC(F)(F)c1ccc2c(c1)C1OCCCC1C(c1ccccc1)N2',
-            'CC(C)(C)c1ccc2c(c1)C1OC(C[NH3+])CCC1C(c1ccccc1)N2'
+            'FC(F)(c1cc([C@H]2OCCC[C@H]2[C@@H](N3)c4ccc(O)cc4)c3cc1)F',
+            '[NH3+]C[C@H]1CC[C@@H]2[C@@H](c3c(N[C@H]2c4ccc(O)cc4)ccc(C(C)(C)C)c3)O1',
+            '[NH3+]C[C@H]1CC[C@@H]2[C@@H](c3c(N[C@H]2c4ccc(O)cc4)ccc(C(F)(F)F)c3)O1',
+            'CC(C)(C)c1ccc2c(c1)[C@H]1OCCC[C@H]1[C@H](c1ccccc1)N2',
+            'FC(F)(c1cc([C@H]2OCCC[C@H]2[C@@H](N3)c4ccccc4)c3cc1)F',
+            '[NH3+]C[C@H]1CC[C@@H]2[C@@H](c3c(N[C@H]2c4ccccc4)ccc(C(C)(C)C)c3)O1'
         ]
         expected_interm = [Chem.MolFromSmiles(x) for x in expected_interm]
 
@@ -47,17 +47,24 @@ class Test_EnumerateRGroups(unittest.TestCase):
             self.same_mol(x, unexpected_interm) for x in generated_interm
         ]
 
+        nonchiral = Chem.MolFromSmiles(
+            'CC(C)(c1cc(C2OCCCC2C(N3)c4ccccc4)c3cc1)C')
+        subms_nonchiral = [
+            self.same_mol(x, nonchiral) for x in generated_interm
+        ]
+
         self.assertTrue(None not in generated_interm)
         self.assertEqual(len(generated_interm),
                          len(expected_interm))  # check length
-        self.assertTrue(
-            subms_expected, [True] *
-            6)  # check if generated intermediates are same as expected
-        self.assertTrue(subms_unexpected,
+        self.assertEqual(
+            sum(subms_expected), 6)  # check if generated intermediates are same as expected
+        self.assertEqual(subms_unexpected,
                         [False] * 6)  # check if previous test is valid
+        self.assertEqual(subms_nonchiral,
+                        [False] * 6)  # check if chiral information captured by test
 
     def same_mol(self, mol1, mol2):
-        return mol1.HasSubstructMatch(mol2) and mol2.HasSubstructMatch(mol1)
+        return mol1.HasSubstructMatch(mol2, useChirality=True) and mol2.HasSubstructMatch(mol1, useChirality=True)
 
     def test_enumerate_eg5(self):
         # get molecule pairs
