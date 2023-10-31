@@ -1,6 +1,7 @@
 # setting chirality based on https://www.valencekjell.com/posts/2021-10-15-chiral-templating/index.html
 
 import itertools
+import warnings
 from collections import defaultdict
 from itertools import product
 
@@ -75,55 +76,7 @@ class EnumRGroups():
                              timeout=2)
         core = Chem.MolFromSmarts(res.smartsString)
 
-        # set SourceAtomIdx of atoms in the core to the same number
-        matches = []
-        for mol in self.pair:
-            match = mol.GetSubstructMatches(core,
-                                            useQueryQueryMatches=False,
-                                            useChirality=True)
-            if len(match) == 1:
-                matches.append(list(match[0]))
-            elif len(match) > 1:
-                # currently only works if max of 2 matches found
-                matches.append(match)
-            else:
-                print(
-                    'Warning, no matches between core and one of the parent molecules'
-                )
-
-        # set SourceAtomIdx of atoms in the core of the first molecule
-        new_pair = []
-        highest_idx = None
-        for match in matches:
-            if isinstance(match, list):
-                core_length = len(match)
-                highest_idx = len(match)
-                break
-        if highest_idx is None:
-            print("add way to add highest idx if both return multiple matches")
-        for i, mol in enumerate(self.pair):
-            if isinstance(matches[i], list):
-                new_mol = Chem.Mol(mol)
-                for j, k in enumerate(matches[i]):
-                    new_mol.GetAtomWithIdx(k).SetProp('SourceAtomIdxSameCore',
-                                                      str(j))
-                for atom in new_mol.GetAtoms():
-                    if not atom.HasProp('SourceAtomIdxSameCore'):
-                        highest_idx += 1
-                        atom.SetProp('SourceAtomIdxSameCore', str(highest_idx))
-                new_pair.append(new_mol)
-            else:
-                for match in matches[i]:
-                    new_mol = Chem.Mol(mol)
-                    for j, k in enumerate(list(match)):
-                        new_mol.GetAtomWithIdx(k).SetProp(
-                            'SourceAtomIdxSameCore', str(j))
-                    for atom in new_mol.GetAtoms():
-                        if not atom.HasProp('SourceAtomIdxSameCore'):
-                            highest_idx += 1
-                            atom.SetProp('SourceAtomIdxSameCore',
-                                         str(highest_idx))
-                    new_pair.append(new_mol)
+        new_pair = self._set_idx_sameforcore(core)
 
         self.pair = new_pair
         # create dataframe with columns Core, R1, ... Rn
@@ -133,12 +86,14 @@ class EnumRGroups():
                                        asRows=False)
         self.df_rgroup = pd.DataFrame(res)
 
+        # in case of multiple core matches, pick atom with right core idxs after rgroupdecomposition
         todrop = []
         for index, row in self.df_rgroup.iterrows():
             mol = row['Core']
             for atom in mol.GetAtoms():
                 if atom.HasProp('SourceAtomIdxSameCore'):
-                    if atom.GetIntProp('SourceAtomIdxSameCore') > core_length:
+                    if atom.GetIntProp(
+                            'SourceAtomIdxSameCore') > self.core_length:
                         todrop.append(index)
 
         self.df_rgroup = self.df_rgroup.drop(todrop).reset_index(drop=True)
@@ -180,7 +135,8 @@ class EnumRGroups():
         # set multiple to true if more than 1 r-group
         if len(self.df_rgroup.columns) > 2:
             self.multiple = True
-            self.columns = self.df_rgroup.columns[1:]  #TODO change to take everything that starts with R # update column names
+            self.columns = self.df_rgroup.columns[
+                1:]  #TODO change to take everything that starts with R # update column names
 
         # # remove duplicate r-groups
         if self.multiple:
@@ -219,6 +175,57 @@ class EnumRGroups():
                     1:]  # update r-group column names
 
         return self.df_rgroup
+
+    def _set_idx_sameforcore(self, core):
+        # get indices of the molecule’s atoms that match the core
+        matches = []
+        for mol in self.pair:
+            match = mol.GetSubstructMatches(core,
+                                            useQueryQueryMatches=False,
+                                            useChirality=True)
+            if len(match) == 1:
+                matches.append(list(match[0]))
+            elif len(match) > 1:
+                # there are multiple possible ways the core can be matched to the parent molecule
+                matches.append(match)
+            else:
+                warnings.warn(
+                    'No matches between core and one of the parent molecules')
+
+        # set SourceAtomIdx of atoms in the core to the same number
+        new_pair = []
+        highest_idx = None
+        for match in matches:
+            if isinstance(match, list):
+                self.core_length = len(match)
+                highest_idx = len(match)
+                break
+        if highest_idx is None:
+            print("add way to add highest idx if both return multiple matches")
+        for i, mol in enumerate(self.pair):
+            if isinstance(matches[i], list):
+                new_mol = Chem.Mol(mol)
+                for j, k in enumerate(matches[i]):
+                    new_mol.GetAtomWithIdx(k).SetProp('SourceAtomIdxSameCore',
+                                                      str(j))
+                for atom in new_mol.GetAtoms():
+                    if not atom.HasProp('SourceAtomIdxSameCore'):
+                        highest_idx += 1
+                        atom.SetProp('SourceAtomIdxSameCore', str(highest_idx))
+                new_pair.append(new_mol)
+            else:
+                for match in matches[i]:
+                    new_mol = Chem.Mol(mol)
+                    for j, k in enumerate(list(match)):
+                        new_mol.GetAtomWithIdx(k).SetProp(
+                            'SourceAtomIdxSameCore', str(j))
+                    for atom in new_mol.GetAtoms():
+                        if not atom.HasProp('SourceAtomIdxSameCore'):
+                            highest_idx += 1
+                            atom.SetProp('SourceAtomIdxSameCore',
+                                         str(highest_idx))
+                    new_pair.append(new_mol)
+        return new_pair
 
     def _get_source_mapping(self, input_mol):
         join_dict = {}
@@ -430,7 +437,7 @@ class EnumRGroups():
             combined_mol.GetAtomWithIdx(atom_list[0]).SetChiralTag(
                 chiral_tag_dict[idx])
 
-        # remove single bond tokens and explicit hydrogen tokens in case molecule is invalid
+        # postprocessing to fix number of hydrogens at attachment points
         for atom in combined_mol.GetAtoms():
             map_num = atom.GetAtomMapNum()
             if map_num == 0: continue
@@ -466,12 +473,11 @@ class EnumRGroups():
                                       atom.GetFormalCharge())
         combined_mol_fixed = combined_mol
 
+        # if molecule is invalid try replacing single bond tokens
         if Chem.MolFromSmiles(Chem.MolToSmiles(combined_mol)) is None:
             combined_mol_fixed = Chem.MolFromSmiles(
                 Chem.MolToSmiles(combined_mol).replace('-', ''))
             if combined_mol_fixed is None:
-                print(f'invalid molecule: {Chem.MolToSmiles(combined_mol)}')
-            if Chem.MolFromSmiles(Chem.MolToSmiles(combined_mol)) is None:
                 print(f'invalid molecule: {Chem.MolToSmiles(combined_mol)}')
             else:
                 combined_mol = combined_mol_fixed
@@ -507,6 +513,7 @@ class EnumRGroups():
                 lambda row: row.Intermediate in map(Chem.MolToSmiles, self.pair
                                                     ),
                 axis=1)
+            # assert if parent molecules are recreated (if not, indicative of unexpected behaviour)
             assert sum(self.df_interm['Exists'].values.tolist()) == 2
             self.df_interm = self.df_interm[self.df_interm['Exists'] == False]
             self.df_interm = self.df_interm.drop(columns=['Exists'])

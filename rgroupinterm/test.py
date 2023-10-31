@@ -99,5 +99,12 @@ class Test_EnumerateRGroups(unittest.TestCase):
         self.assertEqual(len(generated_interm),
                          2**(len(generator.columns)) - 2)
 
+        # test chirality applied correctly for one of the intermediates
+        expected_intermediate = Chem.MolFromSmiles('CC[N@@H+](C[C@H]1CC[C@@H]2[C@@H](c3c(N[C@H]2c4ccccc4)ccc(C(C)(C)C)c3)O1)C')
+        subms = [
+            self.same_mol(x, expected_intermediate) for x in generated_interm
+        ]
+        self.assertEqual(sum(subms), 1)
+
 if __name__ == '__main__':
     unittest.main()
