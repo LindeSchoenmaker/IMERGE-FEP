@@ -48,9 +48,13 @@ class Test_EnumerateRGroups(unittest.TestCase):
         ]
 
         self.assertTrue(None not in generated_interm)
-        self.assertEqual(len(generated_interm), len(expected_interm)) # check length
-        self.assertTrue(subms_expected, [True] * 6) # check if generated intermediates are same as expected
-        self.assertTrue(subms_unexpected, [False] * 6) # check if previous test is valid
+        self.assertEqual(len(generated_interm),
+                         len(expected_interm))  # check length
+        self.assertTrue(
+            subms_expected, [True] *
+            6)  # check if generated intermediates are same as expected
+        self.assertTrue(subms_unexpected,
+                        [False] * 6)  # check if previous test is valid
 
     def same_mol(self, mol1, mol2):
         return mol1.HasSubstructMatch(mol2) and mol2.HasSubstructMatch(mol1)
@@ -58,10 +62,10 @@ class Test_EnumerateRGroups(unittest.TestCase):
     def test_enumerate_eg5(self):
         # get molecule pairs
         dir = 'eg5'
-        path = "/zfsdata/data/linde/fep_intermediate_generation/ligands/" 
+        path = "/zfsdata/data/linde/fep_intermediate_generation/ligands/"
         addendum = '*.sdf'
         mols = []
-        for file in glob.glob(path+dir+'/'+addendum):
+        for file in glob.glob(path + dir + '/' + addendum):
             mol = Chem.rdmolfiles.SDMolSupplier(file)[0]
             mols.append(mol)
 
@@ -72,11 +76,21 @@ class Test_EnumerateRGroups(unittest.TestCase):
             df_interm, core = generator.generate_intermediates([liga, ligb])
             generated_interm = df_interm['Intermediate'].tolist()
             self.assertTrue(None not in generated_interm)
-            # self.assertEqual(len(generated_interm),2**(len(generator.columns))-2)
-            if len(generated_interm) != 2**(len(generator.columns))-2:
-                print([Chem.MolToSmiles(x) for x in [liga, ligb]])
+            self.assertEqual(len(generated_interm),
+                             2**(len(generator.columns)) - 2)
 
-
+    def test_multiple_core_matches(self):
+        generator = EnumRGroups()
+        smiles = [
+            'C[NH2+]C[C@H]1CC[C@@H]2[C@H](O1)c1cc(C(F)(F)F)ccc1N[C@H]2c1ccc(F)cc1',
+            'CC[N@H+](CCO)C[C@H]1CC[C@@H]2[C@H](O1)c1cc(C(C)(C)C)ccc1N[C@H]2c1ccccc1'
+        ]
+        mols = [Chem.MolFromSmiles(x) for x in smiles]
+        df_interm, core = generator.generate_intermediates(mols)
+        generated_interm = df_interm['Intermediate'].tolist()
+        self.assertTrue(None not in generated_interm)
+        self.assertEqual(len(generated_interm),
+                         2**(len(generator.columns)) - 2)
 
 if __name__ == '__main__':
     unittest.main()
