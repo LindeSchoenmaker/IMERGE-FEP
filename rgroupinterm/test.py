@@ -1,10 +1,12 @@
 import glob
+import operator
 import unittest  # The test framework
 from itertools import combinations
 
 import pandas as pd
 from rdkit import Chem, rdBase
 
+from rgroupinterm.pruners import BasePruner, HeavyAtomScorer, LomapScorer, Scorer
 from rgroupinterm.rgroupenumeration import EnumRGroups
 
 rdBase.DisableLog('rdApp.*')
@@ -105,6 +107,95 @@ class Test_EnumerateRGroups(unittest.TestCase):
             self.same_mol(x, expected_intermediate) for x in generated_interm
         ]
         self.assertEqual(sum(subms), 1)
+
+
+class dummy_scorer():
+    def __init__(self):
+        self._score_type = int
+
+    @property
+    def score_type(self):
+        return self._score_type
+
+    def __call__(self, intermediate, pair: list, add1=False):
+        a = 1
+        if add1:
+            a += 1
+        return a
+
+class transformer(Scorer):
+    def __init__(self):
+        self._score_type = bool
+
+    @property
+    def score_type(self):
+        return self._score_type
+
+    def __call__(self, score):
+        return score > 1.2
+
+
+class Test_Pruners(unittest.TestCase):
+
+    def test_base(self):
+        df = pd.read_csv('data/eg_5_intermediates.csv')[:10]
+        df_mols = pd.DataFrame()
+        for column in ['Intermediate', 'Parent_1', 'Parent_2']:
+            df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
+        df_mols['Pair'] = df['Pair']
+
+        pruner = BasePruner(dummy_scorer(), None)
+        pruned_df = pruner(df_mols)
+        self.assertTrue('score' in pruned_df.columns)
+
+        pruner = BasePruner(dummy_scorer(), None, threshold=1.2)
+        pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 0)
+
+        pruner = BasePruner(dummy_scorer(),
+                            None,
+                            threshold=1.2,
+                            compare=operator.le)
+        pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 10)
+
+        pruner = BasePruner(dummy_scorer(), None, threshold=0.8)
+        pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 10)
+
+        pruner = BasePruner(dummy_scorer(), transformer())
+        pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 10)
+
+        pruner = BasePruner(dummy_scorer(), transformer(), threshold=True)
+        pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 0)
+
+    def test_lomap(self):
+        df = pd.read_csv('data/eg_5_intermediates.csv')[:10]
+        df_mols = pd.DataFrame()
+        for column in ['Intermediate', 'Parent_1', 'Parent_2']:
+            df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
+        df_mols['Pair'] = df['Pair']
+
+        pruner = BasePruner(LomapScorer(), topn=1)
+        pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 3)
+
+        pruner = BasePruner(LomapScorer(), topn=2)
+        pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 6)
+
+
+    def test_heavyatom(self):
+        df = pd.read_csv('data/eg_5_intermediates.csv')[:10]
+        df_mols = pd.DataFrame()
+        for column in ['Intermediate', 'Parent_1', 'Parent_2']:
+            df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
+        df_mols['Pair'] = df['Pair']
+
+        pruner = BasePruner(HeavyAtomScorer(), threshold=True)
+        pruned_df = pruner(df_mols)
 
 if __name__ == '__main__':
     unittest.main()
