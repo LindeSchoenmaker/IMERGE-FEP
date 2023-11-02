@@ -122,6 +122,7 @@ class HeavyAtomScorer(Scorer):
 
     def __init__(self):
         self._score_type = float
+        self.describe = 'smallest'
 
     @property
     def score_type(self):
@@ -137,13 +138,25 @@ class HeavyAtomScorer(Scorer):
                                   timeout=2)
         core = Chem.MolFromSmarts(res.smartsString)
         res, _ = Chem.rdRGroupDecomposition.RGroupDecompose([core],
-                                            inputs,
-                                            asSmiles=True,
-                                            asRows=False)
+                                                            inputs,
+                                                            asSmiles=False,
+                                                            asRows=False)
         df = pd.DataFrame(res)
+        interm_rs = df.iloc[0][[
+            column for column in df.columns if column.startswith('R')
+        ]].to_list()
+        scores = [r.GetNumHeavyAtoms() for r in interm_rs]
+        if self.describe == 'smallest':
+            return min(scores)
+
+        return scores
+
+def GetNumHeavyAtoms(mol):
+    return mol.GetNumHeavyAtoms()
 
 
 class LomapScorer(Scorer):
+
     def __init__(self):
         self._score_type = float
 

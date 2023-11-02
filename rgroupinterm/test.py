@@ -186,7 +186,6 @@ class Test_Pruners(unittest.TestCase):
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 6)
 
-
     def test_heavyatom(self):
         df = pd.read_csv('data/eg_5_intermediates.csv')[:10]
         df_mols = pd.DataFrame()
@@ -194,8 +193,9 @@ class Test_Pruners(unittest.TestCase):
             df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
         df_mols['Pair'] = df['Pair']
 
-        pruner = BasePruner(HeavyAtomScorer(), threshold=True)
+        pruner = BasePruner(HeavyAtomScorer(), threshold=1)
         pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 3)
 
 if __name__ == '__main__':
     unittest.main()
