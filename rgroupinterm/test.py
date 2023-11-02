@@ -13,6 +13,7 @@ from rgroupinterm.pruners import (
     HeavyAtomScorer,
     LomapScorer,
     MinTransformer,
+    NormalizeTransformer,
     ROCSScorer,
     SumTransformer,
     Transformer,
@@ -175,11 +176,11 @@ class Test_Pruners(unittest.TestCase):
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 10)
 
-        pruner = BasePruner([dummy_scorer()], transformer())
+        pruner = BasePruner([dummy_scorer()], [transformer()])
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 10)
 
-        pruner = BasePruner([dummy_scorer()], transformer(), threshold=True)
+        pruner = BasePruner([dummy_scorer()], [transformer()], threshold=True)
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 0)
 
@@ -229,7 +230,7 @@ class Test_Pruners(unittest.TestCase):
             LomapScorer(transformer=HarmonicMeanTransformer()),
             ROCSScorer(transformer=HarmonicMeanTransformer(exponent=2))
         ],
-                            transformer=WeightedSumTransformer(weights=[0.2, 0.8]), #TODO would be nicer if weights more clearly coupled to score(r)
+                            transformers=[NormalizeTransformer(), WeightedSumTransformer(weights=[0.2, 0.8])], #TODO would be nicer if weights more clearly coupled to score(r)
                             topn=2)
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 6)

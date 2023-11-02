@@ -109,12 +109,12 @@ class BasePruner(ABC):
 
     def __init__(self,
                  scorers: list[Callable],
-                 transformer: Callable = None,
+                 transformers: list[Callable] = None,
                  topn: int | None = None,
                  compare: Callable = operator.ge,
                  threshold: float | None = None):
         self.scorers = scorers
-        self.transformer = transformer
+        self.transformers = transformers
         # self.func_kwargs = func_kwargs if func_kwargs else {}
         self.topn = topn
         self.compare = compare
@@ -139,30 +139,37 @@ class BasePruner(ABC):
                 'Intermediate'], [row['Parent_1'], row['Parent_2']]),
                                  axis=1,
                                  result_type='expand')
-            if isinstance(df_scores, pd.Series):
-                df_scores.name = f'raw_score_{i}'
-                i += 1
-            elif isinstance(df_scores, pd.DataFrame):
-                df_scores.columns = [
-                    f'raw_score_{i+x}' for x in len(df_scores.columns)
-                ]
-                i += len(df_scores.columns)
+            df_scores, i = rename_columns(df_scores, i)
             df = pd.concat([df, df_scores], axis=1)
 
         # if transformer, transform score
         raw_columns = [
             column for column in df.columns if column.startswith('raw_score')
         ]
-        if self.transformer:
-            df['score'] = df[raw_columns].apply(self.transformer, axis=1)
-            self.score_type = self.transformer.score_type
+        if self.transformers:
+            i = 0
+            for transformer in self.transformers:
+                if transformer.__class__ == 'NormalizeTransformer':
+                    return df.groupby('Pair').apply(transformer)
+                else:
+                    df_trans = df[raw_columns].apply(transformer, axis=1)
+                df_trans, i = rename_columns(df_trans,
+                                                i,
+                                                name='trans_score')
+                self.score_type = transformer.score_type
+                df = pd.concat([df, df_trans], axis=1)
+            trans_columns = [
+                column for column in df.columns
+                if column.startswith('trans_score')
+            ]
+            df['score'] = df[trans_columns[-1]]
         elif len(raw_columns) == 1:
             df.rename(columns={'raw_score_0': 'score'}, inplace=True)
 
         # do pruning
         if self.topn or self.threshold:
             #TODO update so that works if multiple transforms or transforming doesn't yield one column
-            if len(raw_columns) > 1 and self.transformer is None:
+            if len(raw_columns) > 1 and self.transformers is None:
                 raise ValueError(
                     'multiple scores are returned, requires transformation before molecules can be pruned'
                 )
@@ -187,6 +194,17 @@ def get_n_largest(group, n):
         return group
     return group.loc[group['score'].nlargest(n).index]
 
+
+def rename_columns(df, i, name = 'raw_score'):
+    if isinstance(df, pd.Series):
+        df.name = f'{name}_{i}'
+        i += 1
+    elif isinstance(df, pd.DataFrame):
+        df.columns = [
+            f'{name}_{i+x}' for x in range(len(df.columns))
+        ]
+        i += len(df.columns)
+    return df, i
 
 class HeavyAtomScorer(Scorer):
 
@@ -306,9 +324,10 @@ class HarmonicMeanTransformer(Transformer):
             scores[0]**self.exponent + scores[1]**self.exponent)
         return score
 
+
 class WeightedSumTransformer(Transformer):
 
-    def __init__(self,  weights: list):
+    def __init__(self, weights: list):
         self._score_type = float
         self.weights = weights
 
@@ -319,3 +338,16 @@ class WeightedSumTransformer(Transformer):
     def __call__(self, scores):
         assert len(scores) == len(self.weights)
         return np.sum(np.multiply(scores, self.weights))
+
+
+class NormalizeTransformer(Transformer):
+
+    def __init__(self):
+        self._score_type = float
+
+    @property
+    def score_type(self):
+        return self._score_type
+
+    def __call__(self, group: pd.DataFrame): #check if series could be given
+        return group
