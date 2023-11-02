@@ -1,15 +1,27 @@
 import glob
 import operator
+import os
 import unittest  # The test framework
 from itertools import combinations
 
 import pandas as pd
 from rdkit import Chem, rdBase
 
-from rgroupinterm.pruners import BasePruner, HeavyAtomScorer, LomapScorer, Scorer
+from rgroupinterm.pruners import (
+    BasePruner,
+    HarmonicMeanTransformer,
+    HeavyAtomScorer,
+    LomapScorer,
+    MinTransformer,
+    ROCSScorer,
+    SumTransformer,
+    Transformer,
+    WeightedSumTransformer,
+)
 from rgroupinterm.rgroupenumeration import EnumRGroups
 
 rdBase.DisableLog('rdApp.*')
+os.environ["OE_LICENSE"] = "/home/linde/.OpenEye/oe_license.txt"
 
 
 class Test_EnumerateRGroups(unittest.TestCase):
@@ -123,7 +135,7 @@ class dummy_scorer():
             a += 1
         return a
 
-class transformer(Scorer):
+class transformer(Transformer):
     def __init__(self):
         self._score_type = bool
 
@@ -144,30 +156,30 @@ class Test_Pruners(unittest.TestCase):
             df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
         df_mols['Pair'] = df['Pair']
 
-        pruner = BasePruner(dummy_scorer(), None)
+        pruner = BasePruner([dummy_scorer()], None)
         pruned_df = pruner(df_mols)
         self.assertTrue('score' in pruned_df.columns)
 
-        pruner = BasePruner(dummy_scorer(), None, threshold=1.2)
+        pruner = BasePruner([dummy_scorer()], None, threshold=1.2)
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 0)
 
-        pruner = BasePruner(dummy_scorer(),
+        pruner = BasePruner([dummy_scorer()],
                             None,
                             threshold=1.2,
                             compare=operator.le)
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 10)
 
-        pruner = BasePruner(dummy_scorer(), None, threshold=0.8)
+        pruner = BasePruner([dummy_scorer()], None, threshold=0.8)
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 10)
 
-        pruner = BasePruner(dummy_scorer(), transformer())
+        pruner = BasePruner([dummy_scorer()], transformer())
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 10)
 
-        pruner = BasePruner(dummy_scorer(), transformer(), threshold=True)
+        pruner = BasePruner([dummy_scorer()], transformer(), threshold=True)
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 0)
 
@@ -178,11 +190,47 @@ class Test_Pruners(unittest.TestCase):
             df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
         df_mols['Pair'] = df['Pair']
 
-        pruner = BasePruner(LomapScorer(), topn=1)
+        pruner = BasePruner([LomapScorer(transformer=SumTransformer())],
+                            topn=1)
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 3)
 
-        pruner = BasePruner(LomapScorer(), topn=2)
+        pruner = BasePruner([LomapScorer(transformer=SumTransformer())],
+                            topn=2)
+        pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 6)
+
+        pruner = BasePruner(
+            [LomapScorer(transformer=HarmonicMeanTransformer(exponent=4))],
+            topn=2)
+        pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 6)
+
+    def test_rocs(self):
+        df = pd.read_csv('data/eg_5_intermediates.csv')[:10]
+        df_mols = pd.DataFrame()
+        for column in ['Intermediate', 'Parent_1', 'Parent_2']:
+            df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
+        df_mols['Pair'] = df['Pair']
+
+        pruner = BasePruner(
+            [ROCSScorer(transformer=HarmonicMeanTransformer(exponent=2))],
+            topn=2)
+        pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 6)
+
+    def test_metric_Daan_3D(self):
+        df = pd.read_csv('data/eg_5_intermediates.csv')[:10]
+        df_mols = pd.DataFrame()
+        for column in ['Intermediate', 'Parent_1', 'Parent_2']:
+            df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
+        df_mols['Pair'] = df['Pair']
+        pruner = BasePruner([
+            LomapScorer(transformer=HarmonicMeanTransformer()),
+            ROCSScorer(transformer=HarmonicMeanTransformer(exponent=2))
+        ],
+                            transformer=WeightedSumTransformer(weights=[0.2, 0.8]), #TODO would be nicer if weights more clearly coupled to score(r)
+                            topn=2)
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 6)
 
@@ -193,7 +241,7 @@ class Test_Pruners(unittest.TestCase):
             df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
         df_mols['Pair'] = df['Pair']
 
-        pruner = BasePruner(HeavyAtomScorer(), threshold=1)
+        pruner = BasePruner([HeavyAtomScorer(MinTransformer())], threshold=1)
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 3)
 
