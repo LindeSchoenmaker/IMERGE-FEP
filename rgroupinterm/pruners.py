@@ -6,7 +6,11 @@ import numpy as np
 import pandas as pd
 from rdkit import Chem
 
-from rgroupinterm.utils.compute_score import computeLOMAPScore, computeROCSScore
+from rgroupinterm.utils.compute_score import (
+    computeLOMAPScore,
+    computeROCSScore,
+    computeTanimotoScore,
+)
 
 
 class Pruner(ABC):
@@ -132,6 +136,7 @@ class BasePruner(ABC):
         """
         # apply scoring function
         i = 0
+        output_columns = []
         for scorer in self.scorers:
             #TODO save score_type as dict
             self.score_type = scorer.score_type
@@ -139,37 +144,35 @@ class BasePruner(ABC):
                 'Intermediate'], [row['Parent_1'], row['Parent_2']]),
                                  axis=1,
                                  result_type='expand')
-            df_scores, i = rename_columns(df_scores, i)
+            df_scores, i, names = rename_columns(df_scores, i)
+            output_columns.extend(names)
             df = pd.concat([df, df_scores], axis=1)
 
         # if transformer, transform score
-        raw_columns = [
-            column for column in df.columns if column.startswith('raw_score')
-        ]
         if self.transformers:
             i = 0
             for transformer in self.transformers:
-                if transformer.__class__ == 'NormalizeTransformer':
-                    return df.groupby('Pair').apply(transformer)
+                # fix column names & which ones areused as input for the next
+                if transformer.__class__ == NormalizeTransformer:
+                    output_columns.append('Pair')
+                    df_trans = df[output_columns].groupby('Pair').apply(
+                        transformer)[output_columns[:-1]]
+                    df_trans.index = df_trans.index.droplevel(0)
                 else:
-                    df_trans = df[raw_columns].apply(transformer, axis=1)
-                df_trans, i = rename_columns(df_trans,
-                                                i,
-                                                name='trans_score')
+                    df_trans = df[output_columns].apply(transformer, axis=1)
+                df_trans, i, names = rename_columns(df_trans,
+                                                    i,
+                                                    name='trans_score')
                 self.score_type = transformer.score_type
                 df = pd.concat([df, df_trans], axis=1)
-            trans_columns = [
-                column for column in df.columns
-                if column.startswith('trans_score')
-            ]
-            df['score'] = df[trans_columns[-1]]
-        elif len(raw_columns) == 1:
-            df.rename(columns={'raw_score_0': 'score'}, inplace=True)
+                output_columns = names
 
+        if len(output_columns) == 1:
+            df['score'] = df[output_columns]
         # do pruning
         if self.topn or self.threshold:
             #TODO update so that works if multiple transforms or transforming doesn't yield one column
-            if len(raw_columns) > 1 and self.transformers is None:
+            if len(output_columns) > 1 and self.transformers is None:
                 raise ValueError(
                     'multiple scores are returned, requires transformation before molecules can be pruned'
                 )
@@ -197,14 +200,16 @@ def get_n_largest(group, n):
 
 def rename_columns(df, i, name = 'raw_score'):
     if isinstance(df, pd.Series):
-        df.name = f'{name}_{i}'
+        names = [f'{name}_{i}']
+        df.name = names[0]
         i += 1
     elif isinstance(df, pd.DataFrame):
-        df.columns = [
+        names = [
             f'{name}_{i+x}' for x in range(len(df.columns))
         ]
+        df.columns = names
         i += len(df.columns)
-    return df, i
+    return df, i, names
 
 class HeavyAtomScorer(Scorer):
 
@@ -240,6 +245,26 @@ class HeavyAtomScorer(Scorer):
 
 def GetNumHeavyAtoms(mol):
     return mol.GetNumHeavyAtoms()
+
+
+class TanimotoScorer(Scorer):
+
+    def __init__(self, transformer: Callable = None):
+        super(TanimotoScorer, self).__init__(transformer)
+        self._score_type = float
+
+    @property
+    def score_type(self):
+        return self._score_type
+
+    def calc_score(self, intermediate, pair):
+        liga = pair[0]
+        ligb = pair[1]
+
+        tanimoto_score_am = computeTanimotoScore(liga, intermediate)
+        tanimoto_score_mb = computeTanimotoScore(intermediate, ligb)
+
+        return tanimoto_score_am, tanimoto_score_mb
 
 
 class LomapScorer(Scorer):
@@ -349,5 +374,5 @@ class NormalizeTransformer(Transformer):
     def score_type(self):
         return self._score_type
 
-    def __call__(self, group: pd.DataFrame): #check if series could be given
-        return group
+    def __call__(self, df: pd.DataFrame):  #check if series could be given
+        return (df - df.min()) / (df.max() - df.min())

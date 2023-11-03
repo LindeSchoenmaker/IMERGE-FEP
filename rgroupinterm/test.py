@@ -16,6 +16,7 @@ from rgroupinterm.pruners import (
     NormalizeTransformer,
     ROCSScorer,
     SumTransformer,
+    TanimotoScorer,
     Transformer,
     WeightedSumTransformer,
 )
@@ -184,6 +185,19 @@ class Test_Pruners(unittest.TestCase):
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 0)
 
+    def test_tanimoto(self):
+        df = pd.read_csv('data/eg_5_intermediates.csv')[:10]
+        df_mols = pd.DataFrame()
+        for column in ['Intermediate', 'Parent_1', 'Parent_2']:
+            df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
+        df_mols['Pair'] = df['Pair']
+
+        pruner = BasePruner(
+            [TanimotoScorer(transformer=HarmonicMeanTransformer(exponent=4))],
+            topn=2)
+        pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 6)
+
     def test_lomap(self):
         df = pd.read_csv('data/eg_5_intermediates.csv')[:10]
         df_mols = pd.DataFrame()
@@ -220,18 +234,41 @@ class Test_Pruners(unittest.TestCase):
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 6)
 
+    def test_metric_Daan_2D(self):
+        df = pd.read_csv('data/eg_5_intermediates.csv')[:10]
+        df_mols = pd.DataFrame()
+        for column in ['Intermediate', 'Parent_1', 'Parent_2']:
+            df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
+        df_mols['Pair'] = df['Pair']
+        pruner = BasePruner(
+            [
+                LomapScorer(transformer=HarmonicMeanTransformer()),
+                TanimotoScorer(transformer=HarmonicMeanTransformer(exponent=4))
+            ],
+            transformers=[
+                NormalizeTransformer(),
+                WeightedSumTransformer(weights=[0.2, 0.8])
+            ],  #TODO would be nicer if weights more clearly coupled to score(r)
+            topn=2)
+        pruned_df = pruner(df_mols)
+        self.assertEqual(len(pruned_df), 6)
+
     def test_metric_Daan_3D(self):
         df = pd.read_csv('data/eg_5_intermediates.csv')[:10]
         df_mols = pd.DataFrame()
         for column in ['Intermediate', 'Parent_1', 'Parent_2']:
             df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
         df_mols['Pair'] = df['Pair']
-        pruner = BasePruner([
-            LomapScorer(transformer=HarmonicMeanTransformer()),
-            ROCSScorer(transformer=HarmonicMeanTransformer(exponent=2))
-        ],
-                            transformers=[NormalizeTransformer(), WeightedSumTransformer(weights=[0.2, 0.8])], #TODO would be nicer if weights more clearly coupled to score(r)
-                            topn=2)
+        pruner = BasePruner(
+            [
+                LomapScorer(transformer=HarmonicMeanTransformer()),
+                ROCSScorer(transformer=HarmonicMeanTransformer(exponent=2))
+            ],
+            transformers=[
+                NormalizeTransformer(),
+                WeightedSumTransformer(weights=[0.2, 0.8])
+            ],  #TODO would be nicer if weights more clearly coupled to score(r)
+            topn=2)
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 6)
 
