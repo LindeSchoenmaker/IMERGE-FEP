@@ -126,10 +126,15 @@ class Test_EnumerateRGroups(unittest.TestCase):
 class dummy_scorer():
     def __init__(self):
         self._score_type = int
+        self._score_suffix = 'test'
 
     @property
     def score_type(self):
         return self._score_type
+
+    @property
+    def score_suffix(self):
+        return self._score_suffix
 
     def __call__(self, intermediate, pair: list, add1=False):
         a = 1
@@ -140,10 +145,15 @@ class dummy_scorer():
 class transformer(Transformer):
     def __init__(self):
         self._score_type = bool
+        self._score_suffix = 'test'
 
     @property
     def score_type(self):
         return self._score_type
+
+    @property
+    def score_suffix(self):
+        return self._score_suffix
 
     def __call__(self, score):
         return score > 1.2

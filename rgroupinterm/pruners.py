@@ -34,6 +34,7 @@ class Scorer(ABC):
 
     Attribute:
         score_type (type): is score is a bool, integer or float
+        score_prefix (str): name of column suffix specific to the scorer class
     """
 
     def __init__(self, transformer: Callable = None):
@@ -42,6 +43,11 @@ class Scorer(ABC):
     @property
     @abstractmethod
     def score_type(self):
+        pass
+    
+    @property
+    @abstractmethod
+    def score_suffix(self):
         pass
 
     def __call__(self, intermediate, pair) -> pd.DataFrame:
@@ -78,10 +84,16 @@ class Transformer(ABC):
 
     Attribute:
         score_type (type): is score is a bool, integer or float
+        score_prefix (str): name of column suffix specific to the transformer class
     """
     @property
     @abstractmethod
     def score_type(self):
+        pass
+    
+    @property
+    @abstractmethod
+    def score_suffix(self):
         pass
 
     @abstractmethod
@@ -135,7 +147,7 @@ class BasePruner(ABC):
             The filtered pd.DataFrame
         """
         # apply scoring function
-        i = 0
+
         output_columns = []
         for scorer in self.scorers:
             #TODO save score_type as dict
@@ -144,13 +156,12 @@ class BasePruner(ABC):
                 'Intermediate'], [row['Parent_1'], row['Parent_2']]),
                                  axis=1,
                                  result_type='expand')
-            df_scores, i, names = rename_columns(df_scores, i)
+            df_scores, names = rename_columns(df_scores, scorer.score_suffix, prefix='raw')
             output_columns.extend(names)
             df = pd.concat([df, df_scores], axis=1)
 
         # if transformer, transform score
         if self.transformers:
-            i = 0
             for transformer in self.transformers:
                 # fix column names & which ones areused as input for the next
                 if transformer.__class__ == NormalizeTransformer:
@@ -160,9 +171,9 @@ class BasePruner(ABC):
                     df_trans.index = df_trans.index.droplevel(0)
                 else:
                     df_trans = df[output_columns].apply(transformer, axis=1)
-                df_trans, i, names = rename_columns(df_trans,
-                                                    i,
-                                                    name='trans_score')
+                df_trans, names = rename_columns(df_trans,
+                                                    transformer.score_suffix,
+                                                    prefix='trans')
                 self.score_type = transformer.score_type
                 df = pd.concat([df, df_trans], axis=1)
                 output_columns = names
@@ -198,29 +209,32 @@ def get_n_largest(group, n):
     return group.loc[group['score'].nlargest(n).index]
 
 
-def rename_columns(df, i, name = 'raw_score'):
+def rename_columns(df, suffix, prefix = 'raw'):
     if isinstance(df, pd.Series):
-        names = [f'{name}_{i}']
+        names = [f'{prefix}_score_{suffix}']
         df.name = names[0]
-        i += 1
     elif isinstance(df, pd.DataFrame):
         names = [
-            f'{name}_{i+x}' for x in range(len(df.columns))
+            f'{prefix}_score_{suffix}_{x}' for x in range(len(df.columns))
         ]
         df.columns = names
-        i += len(df.columns)
-    return df, i, names
+    return df, names
 
 class HeavyAtomScorer(Scorer):
 
     def __init__(self, transformer: Callable = None):
         super(HeavyAtomScorer, self).__init__(transformer)
         self._score_type = float
+        self._score_suffix = 'HeavyAtom'
         self.describe = 'smallest'
 
     @property
     def score_type(self):
         return self._score_type
+
+    @property
+    def score_suffix(self):
+        return self._score_suffix
 
     def calc_score(self, intermediate, pair):
         inputs = [intermediate]
@@ -252,10 +266,15 @@ class TanimotoScorer(Scorer):
     def __init__(self, transformer: Callable = None):
         super(TanimotoScorer, self).__init__(transformer)
         self._score_type = float
+        self._score_suffix = 'Tanimoto'
 
     @property
     def score_type(self):
         return self._score_type
+    
+    @property
+    def score_suffix(self):
+        return self._score_suffix
 
     def calc_score(self, intermediate, pair):
         liga = pair[0]
@@ -272,10 +291,15 @@ class LomapScorer(Scorer):
     def __init__(self, transformer: Callable = None):
         super(LomapScorer, self).__init__(transformer)
         self._score_type = float
+        self._score_suffix = 'Lomap'
 
     @property
     def score_type(self):
         return self._score_type
+
+    @property
+    def score_suffix(self):
+        return self._score_suffix
 
     def calc_score(self, intermediate, pair):
         liga = pair[0]
@@ -292,10 +316,15 @@ class ROCSScorer(Scorer):
     def __init__(self, transformer: Callable = None):
         super(ROCSScorer, self).__init__(transformer)
         self._score_type = float
+        self._score_suffix = 'ROCS'
 
     @property
     def score_type(self):
         return self._score_type
+    
+    @property
+    def score_suffix(self):
+        return self._score_suffix
 
     def calc_score(self, intermediate, pair):
         liga = pair[0]
@@ -311,10 +340,15 @@ class SumTransformer(Transformer):
 
     def __init__(self):
         self._score_type = float
+        self._score_suffix = 'Sum'
 
     @property
     def score_type(self):
         return self._score_type
+
+    @property
+    def score_suffix(self):
+        return self._score_suffix
 
     def __call__(self, scores):
         return sum(scores)
@@ -324,10 +358,15 @@ class MinTransformer(Transformer):
 
     def __init__(self):
         self._score_type = float
+        self._score_suffix = 'Min'
 
     @property
     def score_type(self):
         return self._score_type
+
+    @property
+    def score_suffix(self):
+        return self._score_suffix
 
     def __call__(self, scores):
         return min(scores)
@@ -337,11 +376,16 @@ class HarmonicMeanTransformer(Transformer):
 
     def __init__(self, exponent: int = 1):
         self._score_type = float
+        self._score_suffix = 'HarmonicMean'
         self.exponent = exponent
 
     @property
     def score_type(self):
         return self._score_type
+
+    @property
+    def score_suffix(self):
+        return self._score_suffix
 
     def __call__(self, scores):
         assert len(scores) == 2
@@ -354,11 +398,16 @@ class WeightedSumTransformer(Transformer):
 
     def __init__(self, weights: list):
         self._score_type = float
+        self._score_suffix = 'WeightedSum'
         self.weights = weights
 
     @property
     def score_type(self):
         return self._score_type
+    
+    @property
+    def score_suffix(self):
+        return self._score_suffix
 
     def __call__(self, scores):
         assert len(scores) == len(self.weights)
@@ -369,10 +418,15 @@ class NormalizeTransformer(Transformer):
 
     def __init__(self):
         self._score_type = float
+        self._score_suffix = 'Normalized'
 
     @property
     def score_type(self):
         return self._score_type
+
+    @property
+    def score_suffix(self):
+        return self._score_suffix
 
     def __call__(self, df: pd.DataFrame):  #check if series could be given
         return (df - df.min()) / (df.max() - df.min())
