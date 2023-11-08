@@ -53,6 +53,8 @@ def fix_Hs(mol):
 def plot_highlighted(liga, ligb, all_intermediates, core):
     # combine edge ligands and intermediates
     ms = [liga, ligb]
+    for m in ms:
+        Chem.SanitizeMol(m)
     ms.extend(all_intermediates)
 
     # prepare core
@@ -213,7 +215,7 @@ def highlight_rgroups(mol,row,core,width=350,height=200,
             d2d.SetFillPolys(True)
             d2d.SetColour(color)
             d2d.DrawPolygon(ps)
-        dos.clearBackground = False
+        dos.clearBackground = True
 
     #----------------------
     # now draw the molecule, with highlights:

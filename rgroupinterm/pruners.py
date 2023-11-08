@@ -5,6 +5,7 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 from rdkit import Chem
+from rdkit.Chem import rdRGroupDecomposition
 
 from rgroupinterm.utils.compute_score import (
     computeLOMAPScore,
@@ -44,7 +45,7 @@ class Scorer(ABC):
     @abstractmethod
     def score_type(self):
         pass
-    
+
     @property
     @abstractmethod
     def score_suffix(self):
@@ -90,7 +91,7 @@ class Transformer(ABC):
     @abstractmethod
     def score_type(self):
         pass
-    
+
     @property
     @abstractmethod
     def score_suffix(self):
@@ -135,6 +136,7 @@ class BasePruner(ABC):
         self.topn = topn
         self.compare = compare
         self.threshold = threshold
+        self.score_type = None
         # add some checks, self.scorer.score_type cannot be bool with topn & threshold
 
     def __call__(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -156,10 +158,13 @@ class BasePruner(ABC):
                 'Intermediate'], [row['Parent_1'], row['Parent_2']]),
                                  axis=1,
                                  result_type='expand')
-            df_scores, names = rename_columns(df_scores, scorer.score_suffix, prefix='raw')
+            df_scores, names = rename_columns(df_scores,
+                                              scorer.score_suffix,
+                                              prefix='raw')
             output_columns.extend(names)
             df = pd.concat([df, df_scores], axis=1)
-
+        if len(output_columns) == 0:
+            output_columns = [x for x in df.columns if 'raw' in x]
         # if transformer, transform score
         if self.transformers:
             for transformer in self.transformers:
@@ -172,8 +177,8 @@ class BasePruner(ABC):
                 else:
                     df_trans = df[output_columns].apply(transformer, axis=1)
                 df_trans, names = rename_columns(df_trans,
-                                                    transformer.score_suffix,
-                                                    prefix='trans')
+                                                 transformer.score_suffix,
+                                                 prefix='trans')
                 self.score_type = transformer.score_type
                 df = pd.concat([df, df_trans], axis=1)
                 output_columns = names
@@ -245,7 +250,7 @@ class HeavyAtomScorer(Scorer):
                                   completeRingsOnly=True,
                                   timeout=2)
         core = Chem.MolFromSmarts(res.smartsString)
-        res, _ = Chem.rdRGroupDecomposition.RGroupDecompose([core],
+        res, _ = rdRGroupDecomposition.RGroupDecompose([core],
                                                             inputs,
                                                             asSmiles=False,
                                                             asRows=False)
@@ -271,7 +276,7 @@ class TanimotoScorer(Scorer):
     @property
     def score_type(self):
         return self._score_type
-    
+
     @property
     def score_suffix(self):
         return self._score_suffix
@@ -321,7 +326,7 @@ class ROCSScorer(Scorer):
     @property
     def score_type(self):
         return self._score_type
-    
+
     @property
     def score_suffix(self):
         return self._score_suffix
@@ -404,7 +409,7 @@ class WeightedSumTransformer(Transformer):
     @property
     def score_type(self):
         return self._score_type
-    
+
     @property
     def score_suffix(self):
         return self._score_suffix
