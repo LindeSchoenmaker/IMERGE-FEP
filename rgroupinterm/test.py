@@ -15,6 +15,7 @@ from rgroupinterm.pruners import (
     MinTransformer,
     NormalizeTransformer,
     ROCSScorer,
+    SmallerThanTransformer,
     SumTransformer,
     TanimotoScorer,
     Transformer,
@@ -289,9 +290,12 @@ class Test_Pruners(unittest.TestCase):
             df_mols[column] = df[column].apply(lambda x: Chem.MolFromSmiles(x))
         df_mols['Pair'] = df['Pair']
 
-        pruner = BasePruner([HeavyAtomScorer(MinTransformer())], threshold=1)
+        pruner = BasePruner([HeavyAtomScorer(MinTransformer(), level='rgroup')], threshold=1)
         pruned_df = pruner(df_mols)
         self.assertEqual(len(pruned_df), 3)
+
+        pruner = BasePruner([HeavyAtomScorer(SmallerThanTransformer(), level='mol')])
+        pruned_df = pruner(df_mols)
 
 if __name__ == '__main__':
     unittest.main()

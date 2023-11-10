@@ -1,6 +1,6 @@
 import operator
 from abc import ABC, abstractmethod
-from typing import Callable
+from typing import Callable, Literal
 
 import numpy as np
 import pandas as pd
@@ -197,6 +197,7 @@ class BasePruner(ABC):
                     return df.groupby('Pair').apply(
                         lambda x: get_n_largest(x, self.topn))
                 else:
+                    #TODO look into why turns into series
                     return df.apply(lambda x: get_n_largest(x, self.topn))
             if self.threshold:
                 if self.score_type == bool:
@@ -226,12 +227,21 @@ def rename_columns(df, suffix, prefix = 'raw'):
     return df, names
 
 class HeavyAtomScorer(Scorer):
+    """
+    Heavy atom scorer
 
-    def __init__(self, transformer: Callable = None):
+    Attribute:
+        score_type (type): is score is a bool, integer or float
+        score_prefix (str): name of column suffix specific to the scorer class
+        level (str): whether to return the number of heavy atoms in intermediate & parents (returns 3 scores)
+                     or to return the number of heavy atoms of the r-groups of the intermediate (num scores equal to number of 3-groups)
+    """
+
+    def __init__(self, transformer: Callable = None, level: Literal['mol', 'rgroup'] = 'mol'):
         super(HeavyAtomScorer, self).__init__(transformer)
         self._score_type = float
-        self._score_suffix = 'HeavyAtom'
-        self.describe = 'smallest'
+        self._score_suffix = f'HeavyAtom_{level}'
+        self.level = level
 
     @property
     def score_type(self):
@@ -242,23 +252,28 @@ class HeavyAtomScorer(Scorer):
         return self._score_suffix
 
     def calc_score(self, intermediate, pair):
-        inputs = [intermediate]
-        inputs.extend(pair)
-        res = Chem.rdFMCS.FindMCS(inputs,
-                                  matchValences=True,
-                                  ringMatchesRingOnly=True,
-                                  completeRingsOnly=True,
-                                  timeout=2)
-        core = Chem.MolFromSmarts(res.smartsString)
-        res, _ = rdRGroupDecomposition.RGroupDecompose([core],
-                                                            inputs,
-                                                            asSmiles=False,
-                                                            asRows=False)
-        df = pd.DataFrame(res)
-        interm_rs = df.iloc[0][[
-            column for column in df.columns if column.startswith('R')
-        ]].to_list()
-        scores = [r.GetNumHeavyAtoms() for r in interm_rs]
+        if self.level == 'rgroup':
+            inputs = [intermediate]
+            inputs.extend(pair)
+            res = Chem.rdFMCS.FindMCS(inputs,
+                                    matchValences=True,
+                                    ringMatchesRingOnly=True,
+                                    completeRingsOnly=True,
+                                    timeout=2)
+            core = Chem.MolFromSmarts(res.smartsString)
+            res, _ = rdRGroupDecomposition.RGroupDecompose([core],
+                                                                inputs,
+                                                                asSmiles=False,
+                                                                asRows=False)
+            df = pd.DataFrame(res)
+            mol_obs = df.iloc[0][[
+                column for column in df.columns if column.startswith('R')
+            ]].to_list()
+        elif self.level == 'mol':
+            mol_obs = [intermediate]
+            mol_obs.extend(pair)
+
+        scores = [r.GetNumHeavyAtoms() for r in mol_obs]
 
         return scores
 
@@ -435,3 +450,45 @@ class NormalizeTransformer(Transformer):
 
     def __call__(self, df: pd.DataFrame):  #check if series could be given
         return (df - df.min()) / (df.max() - df.min())
+
+
+class OperatorTransformer(Transformer):
+
+    def __init__(self, a: int, b: int, compare: Callable = operator.ge):
+        self._score_type = bool
+        self._score_suffix = 'Operator'
+        self.a = a
+        self.b = b
+        self.compare = compare
+
+    @property
+    def score_type(self):
+        return self._score_type
+
+    @property
+    def score_suffix(self):
+        return self._score_suffix
+
+    def __call__(self, scores):
+        return self.compare(scores[self.a], scores[self.b])
+
+
+class SmallerThanTransformer(Transformer):
+    """returns true if the first score is lower than at least one of other two scores"""
+
+    def __init__(self):
+        self._score_type = bool
+        self._score_suffix = 'SmallerThan'
+
+    @property
+    def score_type(self):
+        return self._score_type
+
+    @property
+    def score_suffix(self):
+        return self._score_suffix
+
+    def __call__(self, scores):
+        if scores[0] <= scores[1] or scores[0] <= scores[2]:
+            return True
+        return False
