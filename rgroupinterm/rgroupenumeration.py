@@ -509,12 +509,13 @@ class EnumRGroups():
             #remove intermediates that are same as original pair
             for mol in self.pair:
                 Chem.SanitizeMol(mol)
+            parent_smiles = list(map(Chem.MolToSmiles, self.pair))
             self.df_interm['Exists'] = self.df_interm.apply(
-                lambda row: row.Intermediate in map(Chem.MolToSmiles, self.pair
-                                                    ),
+                lambda row: str(parent_smiles.index(row.Intermediate)) if row.Intermediate in parent_smiles else False,
                 axis=1)
             # assert if parent molecules are recreated (if not, indicative of unexpected behaviour)
-            assert sum(self.df_interm['Exists'].values.tolist()) == 2
+            assert '0' in self.df_interm['Exists'].values.tolist()
+            assert '1' in self.df_interm['Exists'].values.tolist()
             self.df_interm = self.df_interm[self.df_interm['Exists'] == False]
             self.df_interm = self.df_interm.drop(columns=['Exists'])
 
