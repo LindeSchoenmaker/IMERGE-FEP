@@ -164,7 +164,7 @@ class BasePruner(ABC):
             output_columns.extend(names)
             df = pd.concat([df, df_scores], axis=1)
         if len(output_columns) == 0:
-            output_columns = [x for x in df.columns if 'raw' in x]
+            output_columns = [x for x in df.columns if 'score' in x]
         # if transformer, transform score
         if self.transformers:
             for transformer in self.transformers:
