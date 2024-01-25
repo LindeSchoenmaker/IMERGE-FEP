@@ -178,7 +178,8 @@ class BasePruner(ABC):
                     df_trans = df[output_columns].apply(transformer, axis=1)
                 df_trans, names = rename_columns(df_trans,
                                                  transformer.score_suffix,
-                                                 prefix='trans')
+                                                 prefix='trans',
+                                                 specific_info=output_columns)
                 self.score_type = transformer.score_type
                 df = pd.concat([df, df_trans], axis=1)
                 output_columns = names
@@ -215,15 +216,25 @@ def get_n_largest(group, n):
     return group.loc[group['score'].nlargest(n).index]
 
 
-def rename_columns(df, suffix, prefix = 'raw'):
-    if isinstance(df, pd.Series):
-        names = [f'{prefix}_score_{suffix}']
-        df.name = names[0]
-    elif isinstance(df, pd.DataFrame):
-        names = [
-            f'{prefix}_score_{suffix}_{x}' for x in range(len(df.columns))
-        ]
-        df.columns = names
+def rename_columns(df, suffix, prefix = 'raw', specific_info = []):
+    if len(specific_info) == 0:
+        if isinstance(df, pd.Series):
+            names = [f'{prefix}_score_{suffix}']
+            df.name = names[0]
+        elif isinstance(df, pd.DataFrame):
+            names = [
+                f'{prefix}_score_{suffix}_{x}' for x in range(len(df.columns))
+            ]
+            df.columns = names
+    else:
+        if isinstance(df, pd.Series):
+            names = [f'{prefix}_score_{suffix}_from_{specific_info[0]}']
+            df.name = names[0]
+        elif isinstance(df, pd.DataFrame):
+            names = [
+                f'{prefix}_score_{suffix}_{x}_from_{specific_info[x]}' for x in range(len(df.columns))
+            ]
+            df.columns = names
     return df, names
 
 class HeavyAtomScorer(Scorer):
