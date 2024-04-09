@@ -44,8 +44,9 @@ class EnumRGroups():
         self.pair = pair
         self.df = self.get_rgroups()
         self.df_interm = self.enumerate_rgroups()
-        self.weld()
-        self.clean_intermediates()
+        if len(self.df_interm.keys()) > 1:
+            self.weld()
+            self.clean_intermediates()
 
         #TODO clean up what to return, can also just be a list
         return self.df_interm, self.df_rgroup['Core'][0]
@@ -60,21 +61,54 @@ class EnumRGroups():
         Returns:
             df_rgroup (pd.DataFrame): dataframe with molecule objects for Core, R1, ... Rn
         """
+        res_max = rdFMCS.FindMCS([self.pair[0], self.pair[1]],
+                                matchValences=True,
+                                ringMatchesRingOnly=True,
+                                completeRingsOnly=True,
+                                timeout=1)
+        core_max = Chem.MolFromSmarts(res_max.smartsString)
+        num_atoms_max = core_max.GetNumAtoms()
+        num_atoms = 0
+
         # make aromatic bonds explicit
         for i, mol in enumerate(self.pair):
-            Chem.Kekulize(mol, clearAromaticFlags=True)
+            Chem.Kekulize(mol, clearAromaticFlags=True) # BondType for all modified aromatic bonds will be changed from AROMATIC to SINGLE or DOUBLE
+
+        sanitize_flags = Chem.SanitizeFlags.SANITIZE_ALL
+        sanitize_flags ^= (Chem.SanitizeFlags.SANITIZE_KEKULIZE | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY)
+
+        core = None
+        flags = Chem.ResonanceFlags()
+        for taut0 in Chem.ResonanceMolSupplier(self.pair[0], flags = flags.KEKULE_ALL):
+            Chem.SanitizeMol(taut0, sanitize_flags)
+            for taut1 in Chem.ResonanceMolSupplier(self.pair[1], flags = flags.KEKULE_ALL):
+                Chem.SanitizeMol(taut1, sanitize_flags)
+                res_temp = rdFMCS.FindMCS([taut0, taut1],
+                                    matchValences=True,
+                                    ringMatchesRingOnly=True,
+                                    completeRingsOnly=True,
+                                    timeout=1)
+                core_temp = Chem.MolFromSmarts(res_temp.smartsString)
+                if core_temp.GetNumAtoms() == num_atoms_max:
+                    self.pair[0] = taut0
+                    self.pair[1] = taut1
+                    core = core_temp
+                    break
+                # elif core_temp.GetNumAtoms() > num_atoms:
+                #     self.pair[0] = taut0
+                #     self.pair[1] = taut1
+                #     core = core_temp
+                #     num_atoms = core_temp.GetNumAtoms()
+
+        if core is None:
+            print('max substructure match not found')
+        print('this pair')
+
+        # save molecule information on
+        for i, mol in enumerate(self.pair):
             for atom in mol.GetAtoms():
                 atom.SetIntProp("SourceAtomIdx", atom.GetIdx())
                 atom.SetIntProp("SourceMol", i)
-
-        #TODO possible to use different comparison functions
-        # find maximimum common substructure
-        res = rdFMCS.FindMCS(self.pair,
-                             matchValences=True,
-                             ringMatchesRingOnly=True,
-                             completeRingsOnly=True,
-                             timeout=2)
-        core = Chem.MolFromSmarts(res.smartsString)
 
         new_pair = self._set_idx_sameforcore(core)
 
@@ -199,6 +233,10 @@ class EnumRGroups():
             if isinstance(match, list):
                 self.core_length = len(match)
                 highest_idx = len(match)
+                break
+            if isinstance(match, tuple):
+                self.core_length = len(match[0])
+                highest_idx = len(match[0])
                 break
         if highest_idx is None:
             print("add way to add highest idx if both return multiple matches")
@@ -471,6 +509,21 @@ class EnumRGroups():
                         i += 2
                 atom.SetNumExplicitHs(4 - len(nonHs) - i +
                                       atom.GetFormalCharge())
+            if atom.GetAtomicNum(
+            ) == 6 and atom.IsInRing():  # for carbon atoms
+                atom.SetNoImplicit(True)
+                nbrs = list(atom.GetNeighbors())
+                nonHs = [nbr.GetAtomicNum() != 1 for nbr in nbrs]
+                bonds = list(atom.GetBonds())
+                bondtypes = [bond.GetBondType() for bond in bonds]
+                i = 0
+                for bondtype in bondtypes:
+                    if bondtype == Chem.BondType.DOUBLE:
+                        i += 1
+                    elif bondtype == Chem.BondType.TRIPLE:
+                        i += 2
+                atom.SetNumExplicitHs(4 - len(nonHs) - i +
+                                      atom.GetFormalCharge())
         combined_mol_fixed = combined_mol
 
         # if molecule is invalid try replacing single bond tokens
@@ -487,7 +540,11 @@ class EnumRGroups():
             atom.SetAtomMapNum(0)
 
         # remove explicit Hs
-        final_mol = Chem.RemoveHs(combined_mol)
+        try:
+            final_mol = Chem.RemoveHs(combined_mol)
+        except Chem.rdchem.AtomValenceException:
+            final_mol = Chem.RemoveHs(combined_mol, sanitize=False)
+            print(final_mol)
 
         #TODO maybe do somewhere else
         # restore bonds to aromatic type
