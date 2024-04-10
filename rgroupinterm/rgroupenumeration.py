@@ -300,15 +300,24 @@ class EnumRGroups():
             df_interm (pd.DataFrame): dataframe with molecule objects for Core, R1, ... Rn of enumerated r-groups
         """
         # combinations of r-groups at the same positions
-        combinations = list(
-            product(*tuple([self.df[column]
-                            for column in self.df.columns[1:]])))
-        # create new dataframe for storing adapted rgroups [has Core, R1, ... Rn]
-        self.df_interm = pd.DataFrame(combinations,
-                                      columns=self.df.columns[1:])
-        self.df_interm['Core'] = self.df.at[0, 'Core']
+        if self.df.at[0, 'Core'].HasSubstructMatch(self.df.at[1, 'Core'],useChirality=True):
+            combinations = list(
+                product(*tuple([self.df[column]
+                                for column in self.df.columns[1:]])))
+            # create new dataframe for storing adapted rgroups [has Core, R1, ... Rn]
+            self.df_interm = pd.DataFrame(combinations,
+                                        columns=self.df.columns[1:])
+            self.df_interm['Core'] = self.df.at[0, 'Core']
+        else:
+            combinations = list(
+                product(*tuple([self.df[column]
+                                for column in self.df.columns])))  
+            # create new dataframe for storing adapted rgroups [has Core, R1, ... Rn]
+            self.df_interm = pd.DataFrame(combinations,
+                                        columns=self.df.columns)
 
         return self.df_interm
+
 
     def weld(self):
         """Put modified rgroups back on the core.
