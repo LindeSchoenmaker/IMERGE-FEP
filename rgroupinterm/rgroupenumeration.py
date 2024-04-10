@@ -65,7 +65,9 @@ class EnumRGroups():
                                 matchValences=True,
                                 ringMatchesRingOnly=True,
                                 completeRingsOnly=True,
-                                timeout=1)
+                                # matchChiralTag=True,
+                                ringCompare=Chem.rdFMCS.RingCompare.PermissiveRingFusion,
+                                timeout=2)
         core_max = Chem.MolFromSmarts(res_max.smartsString)
         num_atoms_max = core_max.GetNumAtoms()
         num_atoms = 0
@@ -87,22 +89,22 @@ class EnumRGroups():
                                     matchValences=True,
                                     ringMatchesRingOnly=True,
                                     completeRingsOnly=True,
-                                    timeout=1)
+                                    # matchChiralTag=True,
+                                    ringCompare=Chem.rdFMCS.RingCompare.PermissiveRingFusion,
+                                    timeout=2)
                 core_temp = Chem.MolFromSmarts(res_temp.smartsString)
                 if core_temp.GetNumAtoms() == num_atoms_max:
                     self.pair[0] = taut0
                     self.pair[1] = taut1
                     core = core_temp
                     break
-                # elif core_temp.GetNumAtoms() > num_atoms:
-                #     self.pair[0] = taut0
-                #     self.pair[1] = taut1
-                #     core = core_temp
-                #     num_atoms = core_temp.GetNumAtoms()
-
+                elif core_temp.GetNumAtoms() > num_atoms:
+                    self.pair[0] = taut0
+                    self.pair[1] = taut1
+                    core = core_temp
+                    num_atoms = core_temp.GetNumAtoms()
         if core is None:
             print('max substructure match not found')
-        print('this pair')
 
         # save molecule information on
         for i, mol in enumerate(self.pair):
