@@ -42,7 +42,8 @@ class EnumRGroups():
             df_interm (pd.DataFrame): dataframe with the generated intermedaites
         """
         self.pair = pair
-        self.df = self.get_rgroups()
+        self.enumerate_kek = False
+        self.df = self.get_rgroups(self.enumerate_kek)
         self.df_interm = self.enumerate_rgroups()
         if len(self.df_interm.keys()) > 1:
             self.weld()
@@ -51,7 +52,7 @@ class EnumRGroups():
         #TODO clean up what to return, can also just be a list
         return self.df_interm, self.df_rgroup['Core'][0]
 
-    def get_rgroups(self) -> pd.DataFrame:
+    def get_rgroups(self, enumerate_kek) -> pd.DataFrame:
         """Method that determines common core and r-groups.
 
         Use maximum common substructure of two molecules to get the differing r-group(s).
@@ -65,46 +66,51 @@ class EnumRGroups():
                                 matchValences=True,
                                 ringMatchesRingOnly=True,
                                 completeRingsOnly=True,
-                                # matchChiralTag=True,
+                                bondCompare=Chem.rdFMCS.BondCompare.CompareOrderExact,
                                 ringCompare=Chem.rdFMCS.RingCompare.PermissiveRingFusion,
                                 timeout=2)
         core_max = Chem.MolFromSmarts(res_max.smartsString)
-        num_atoms_max = core_max.GetNumAtoms()
-        num_atoms = 0
 
         # make aromatic bonds explicit
         for i, mol in enumerate(self.pair):
             Chem.Kekulize(mol, clearAromaticFlags=True) # BondType for all modified aromatic bonds will be changed from AROMATIC to SINGLE or DOUBLE
 
-        sanitize_flags = Chem.SanitizeFlags.SANITIZE_ALL
-        sanitize_flags ^= (Chem.SanitizeFlags.SANITIZE_KEKULIZE | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY)
+        if enumerate_kek:
+            num_atoms_max = core_max.GetNumAtoms()
+            num_atoms = 0
 
-        core = None
-        flags = Chem.ResonanceFlags()
-        for taut0 in Chem.ResonanceMolSupplier(self.pair[0], flags = flags.KEKULE_ALL):
-            Chem.SanitizeMol(taut0, sanitize_flags)
-            for taut1 in Chem.ResonanceMolSupplier(self.pair[1], flags = flags.KEKULE_ALL):
-                Chem.SanitizeMol(taut1, sanitize_flags)
-                res_temp = rdFMCS.FindMCS([taut0, taut1],
-                                    matchValences=True,
-                                    ringMatchesRingOnly=True,
-                                    completeRingsOnly=True,
-                                    # matchChiralTag=True,
-                                    ringCompare=Chem.rdFMCS.RingCompare.PermissiveRingFusion,
-                                    timeout=2)
-                core_temp = Chem.MolFromSmarts(res_temp.smartsString)
-                if core_temp.GetNumAtoms() == num_atoms_max:
-                    self.pair[0] = taut0
-                    self.pair[1] = taut1
-                    core = core_temp
-                    break
-                elif core_temp.GetNumAtoms() > num_atoms:
-                    self.pair[0] = taut0
-                    self.pair[1] = taut1
-                    core = core_temp
-                    num_atoms = core_temp.GetNumAtoms()
-        if core is None:
-            print('max substructure match not found')
+            sanitize_flags = Chem.SanitizeFlags.SANITIZE_ALL
+            sanitize_flags ^= (Chem.SanitizeFlags.SANITIZE_KEKULIZE | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY)
+
+            core = None
+            flags = Chem.ResonanceFlags()
+            for taut0 in Chem.ResonanceMolSupplier(self.pair[0], flags = flags.KEKULE_ALL):
+                Chem.SanitizeMol(taut0, sanitize_flags)
+                for taut1 in Chem.ResonanceMolSupplier(self.pair[1], flags = flags.KEKULE_ALL):
+                    Chem.SanitizeMol(taut1, sanitize_flags)
+                    res_temp = rdFMCS.FindMCS([taut0, taut1],
+                                        matchValences=True,
+                                        ringMatchesRingOnly=True,
+                                        completeRingsOnly=True,
+                                        # matchChiralTag=True,
+                                        ringCompare=Chem.rdFMCS.RingCompare.PermissiveRingFusion,
+                                        timeout=2)
+                    core_temp = Chem.MolFromSmarts(res_temp.smartsString)
+                    if core_temp.GetNumAtoms() == num_atoms_max:
+                        self.pair[0] = taut0
+                        self.pair[1] = taut1
+                        core = core_temp
+                        break
+                    elif core_temp.GetNumAtoms() > num_atoms:
+                        self.pair[0] = taut0
+                        self.pair[1] = taut1
+                        core = core_temp
+                        num_atoms = core_temp.GetNumAtoms()
+            if core is None:
+                print('max substructure match not found')
+        else:
+            smarts = Chem.MolToSmiles(core_max).replace(':', '@').replace('H', '')
+            core = Chem.MolFromSmarts(smarts)
 
         # save molecule information on
         for i, mol in enumerate(self.pair):
@@ -318,7 +324,6 @@ class EnumRGroups():
 
         return self.df_interm
 
-
     def weld(self):
         """Put modified rgroups back on the core.
         
@@ -328,6 +333,7 @@ class EnumRGroups():
         #TODO maybe just return those as a list
         self.df_interm['Intermediate'] = None
         for index, row in self.df_interm.iterrows():
+            if index != len(self.df_interm)-1: continue
             #TODO check if try does anything
             try:
                 mol_to_weld = row['Core']
@@ -503,8 +509,10 @@ class EnumRGroups():
                         i += 1
                     elif bondtype == Chem.BondType.TRIPLE:
                         i += 2
-                atom.SetNumExplicitHs(3 - len(nonHs) - i +
-                                      atom.GetFormalCharge())
+                numHs = 3 - len(nonHs) - i + atom.GetFormalCharge()
+                if numHs < 0:
+                    return None
+                atom.SetNumExplicitHs(numHs)
             if atom.GetAtomicNum(
             ) == 6 and not atom.IsInRing():  # for carbon atoms
                 atom.SetNoImplicit(True)
@@ -518,8 +526,10 @@ class EnumRGroups():
                         i += 1
                     elif bondtype == Chem.BondType.TRIPLE:
                         i += 2
-                atom.SetNumExplicitHs(4 - len(nonHs) - i +
-                                      atom.GetFormalCharge())
+                numHs = 4 - len(nonHs) - i + atom.GetFormalCharge()
+                if numHs < 0:
+                    return None
+                atom.SetNumExplicitHs(numHs)
             if atom.GetAtomicNum(
             ) == 6 and atom.IsInRing():  # for carbon atoms
                 atom.SetNoImplicit(True)
@@ -533,8 +543,10 @@ class EnumRGroups():
                         i += 1
                     elif bondtype == Chem.BondType.TRIPLE:
                         i += 2
-                atom.SetNumExplicitHs(4 - len(nonHs) - i +
-                                      atom.GetFormalCharge())
+                numHs = 4 - len(nonHs) - i + atom.GetFormalCharge()
+                if numHs < 0:
+                    return None
+                atom.SetNumExplicitHs(numHs)
         combined_mol_fixed = combined_mol
 
         # if molecule is invalid try replacing single bond tokens
