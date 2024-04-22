@@ -333,7 +333,7 @@ class EnumRGroups():
         #TODO maybe just return those as a list
         self.df_interm['Intermediate'] = None
         for index, row in self.df_interm.iterrows():
-            if index != len(self.df_interm)-1: continue
+            # if index != len(self.df_interm)-1: continue
             #TODO check if try does anything
             try:
                 mol_to_weld = row['Core']
