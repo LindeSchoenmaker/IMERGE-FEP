@@ -603,6 +603,12 @@ class EnumRGroups():
             # return mol objects
             self.df_interm['Intermediate'] = self.df_interm.apply(
                 lambda row: Chem.MolFromSmiles(row.Intermediate), axis=1)
+            
+        if len(self.df_interm) > 0:
+            # remove duplicate molecules
+            self.df_interm['SMILES'] = self.df_interm.apply(
+                lambda row: Chem.MolToSmiles(row.Intermediate), axis=1)
+            self.df_interm = self.df_interm.drop_duplicates(subset=['SMILES'])
 
         self.df_interm = self.df_interm.drop(
             columns=[*['Core'], *self.columns])
