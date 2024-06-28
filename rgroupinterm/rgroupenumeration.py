@@ -1,6 +1,7 @@
 # setting chirality based on https://www.valencekjell.com/posts/2021-10-15-chiral-templating/index.html
 
 import itertools
+import re
 import warnings
 from collections import defaultdict
 from itertools import product
@@ -26,10 +27,15 @@ class EnumRGroups():
         columns (str): column names of columns containing r-groups
     """
 
-    def __init__(self):
+    def __init__(self, enumerate_kekule = False, permutate = False, insert_small = False):
         """The init."""
         self.multiple = False
         self.columns = ['R1']
+        
+        self.enumerate_kekule = enumerate_kekule
+        self.permutate = permutate
+        self.insert_small = insert_small 
+        
 
     def generate_intermediates(self,
                                pair: list[Chem.rdchem.Mol]) -> pd.DataFrame:
@@ -42,17 +48,23 @@ class EnumRGroups():
             df_interm (pd.DataFrame): dataframe with the generated intermedaites
         """
         self.pair = pair
-        self.enumerate_kek = False
-        self.df = self.get_rgroups(self.enumerate_kek)
+        self.columns = ['R1']
+        self.df = self.get_rgroups(self.enumerate_kekule)
         self.df_interm = self.enumerate_rgroups()
-        if len(self.df_interm.keys()) > 1:
+        if "R2" in self.df_interm.keys():
+            self.weld()
+            self.clean_intermediates()
+        elif self.permutate:
+            self.charge_original = Chem.GetFormalCharge(self.pair[0])
+            self.permutate_rgroup()
             self.weld()
             self.clean_intermediates()
 
         #TODO clean up what to return, can also just be a list
         return self.df_interm, self.df_rgroup['Core'][0]
 
-    def get_rgroups(self, enumerate_kek) -> pd.DataFrame:
+
+    def get_rgroups(self, enumerate_kekule) -> pd.DataFrame:
         """Method that determines common core and r-groups.
 
         Use maximum common substructure of two molecules to get the differing r-group(s).
@@ -75,7 +87,7 @@ class EnumRGroups():
         for i, mol in enumerate(self.pair):
             Chem.Kekulize(mol, clearAromaticFlags=True) # BondType for all modified aromatic bonds will be changed from AROMATIC to SINGLE or DOUBLE
 
-        if enumerate_kek:
+        if enumerate_kekule:
             num_atoms_max = core_max.GetNumAtoms()
             num_atoms = 0
 
@@ -323,6 +335,111 @@ class EnumRGroups():
                                         columns=self.df.columns)
 
         return self.df_interm
+    
+    def tokenize(self, rgroup):
+        """ 
+        Tokenize SMILES of the small and large R group
+        """
+        # set regex for SMILES 
+        pattern =  r"(\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\\\|\\|\/|:|~|@|\?|>|\*|\$|\%[0-9]{2}|[0-9])"
+        regex = re.compile(pattern)
+        tokens = [token for token in regex.findall(rgroup)]
+        return tokens
+    
+    def check_charge(self, interm):
+        charge = Chem.GetFormalCharge(interm)
+
+        return charge == self.charge_original
+    
+
+    # def return_charge(self, rgroup):
+    #     try:
+    #         mol = pybel.readstring("smi", rgroup)
+    #         #bool polaronly, bool correctForPH, double pH
+    #         mol.OBMol.AddHydrogens(False, True, 7.4)
+    #         rgroup = mol.write("smi")
+
+    #         mol = Chem.MolFromSmiles(rgroup)
+    #         charge = Chem.GetFormalCharge(mol)
+    #         # - for neutral, positive numbers for positive charge, negative for neragive charge
+    #     except:
+    #         # in case where pybel cannot read molecule, decided to kick out molecule
+    #         charge = None
+    #     return charge
+    
+
+    def permutate_rgroup(self, column='R1'):
+        """ 
+        Remove tokens or edit tokens from R-groups of the largest molecule. Currently only able to remove tokens
+        """
+        self.df_interm_rgroup = pd.DataFrame(columns = self.df.columns[1:])
+
+        tokens = []
+        for index, row in self.df_interm.iterrows():
+            mol = Chem.Mol(row[column])
+            Chem.SanitizeMol(mol)
+            token = self.tokenize(Chem.MolToSmiles(mol))
+            tokens.append(token)
+        
+        short_tokens = min(tokens, key=len)
+        long_tokens = max(tokens, key=len)
+        # sample some/all options where tokens from small r-group are inserted
+        available_small = [item for item in short_tokens if not re.match(r"(\[\*\:.\]|\.)", item)]
+
+        if len(available_small) == 0:
+            insert_small = False 
+        else:
+            to_add = set()
+            for i in range(1, len(available_small)+1):
+                for subset in itertools.combinations(available_small, i):
+                    to_add.add(subset)
+            insert_small = self.insert_small
+
+        # get all the possible options for shorter r-group   
+        # for large rgroup go over all the combinations with length in range 1 shorter than largest fragment - to 1 larger than shortest fragment 
+        ## ask willem if shortest intermediate fragment can have as much atoms as shortest fragment or should always be 1 bigger
+        ## maybe handle connection token differently
+        for i in range(len(long_tokens) - 1, len(short_tokens) - 1, -1):
+            for subset in itertools.combinations(long_tokens, i):
+                # in some cases connection token will be removed, discard those cases
+                ## does not take into account situation with multiple connections in rgroup, like for pair 7 
+                ## C1CC1[*:1].[H][*:1].[H][*:1]
+                connection = [item for item in subset if re.match('\\[\\*:.\\]', item)]
+                if connection:
+                    # add fragments of small subset into large subset
+                    subsets = []
+                    subsets.append(subset)
+
+                    if insert_small:
+                        for to_insert in to_add:
+                            # only insert tokens from small fragment when smaller than long fragment
+                            if len(subset) >= len(self.tokens) - len(to_insert): continue
+                            for j in range(len(subset)):
+                                a = list(subset)
+                                a[j:j] = to_insert
+                                subsets.append(a)
+
+                    for subset in subsets:
+                        interm = ''.join(subset)
+                        # keep fragments with valid SMILES
+                        interm_mol = Chem.MolFromSmiles(interm)
+                        if interm_mol is not None:
+                            Chem.Kekulize(interm_mol, clearAromaticFlags=True)
+                            # keep fragments that do not introduce/loose charge
+                            # using openbabel & looking at disconnected rgroups could sometimes be incorrect
+                            if self.check_charge(interm_mol):
+                                self.df_interm_rgroup.loc[self.df_interm_rgroup.shape[0], column] = interm_mol
+        
+        # drop duplicate R groups to save time
+        self.df_interm_rgroup = self.df_interm_rgroup.drop_duplicates(subset=column)   
+        self.df_interm_rgroup['Core'] = self.df.at[0,'Core']
+        # in case of multiple rgroups also add unchanged rgroups to df
+        # if self.multiple == True:
+        #     for rgroup in self.columns:
+        #         if rgroup != self.column:
+        #             self.df_interm_rgroup[rgroup] = self.df.at[0,rgroup]
+        self.df_interm = pd.concat([self.df_interm, self.df_interm_rgroup]).reset_index()
+
 
     def weld(self):
         """Put modified rgroups back on the core.
@@ -568,6 +685,8 @@ class EnumRGroups():
         except Chem.rdchem.AtomValenceException:
             final_mol = Chem.RemoveHs(combined_mol, sanitize=False)
             print(final_mol)
+        except Chem.rdchem.KekulizeException:
+            return None
 
         #TODO maybe do somewhere else
         # restore bonds to aromatic type
