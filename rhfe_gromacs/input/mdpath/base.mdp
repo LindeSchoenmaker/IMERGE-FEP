@@ -1,0 +1,53 @@
+;====================================================
+; MD paramters same for every run
+;====================================================
+
+;----------------------------------------------------
+; BONDS
+;----------------------------------------------------
+constraint_algorithm   = lincs      ; holonomic constraints
+constraints            = h-bonds  ; hydrogens only are constrained
+lincs_iter             = 1          ; accuracy of LINCS (1 is default)
+lincs_order            = 12          ; also related to accuracy (4 is default)
+lincs-warnangle        = 30         ; maximum angle that a bond can rotate before LINCS will complain (30 is default)
+continuation           = yes        ; formerly known as 'unconstrained-start' - useful for exact continuations and reruns
+
+;----------------------------------------------------
+; ELECTROSTATICS
+;----------------------------------------------------
+coulombtype      = PME      ; Particle Mesh Ewald for long-range electrostatics
+rcoulomb         = 1.2      ; short-range electrostatic cutoff (in nm)
+rcoulomb-switch  = 0
+ewald_geometry   = 3d       ; Ewald sum is performed in all three dimensions
+pme-order        = 4        ; interpolation order for PME (default is 4)
+fourierspacing   = 0.10     ; grid spacing for FFT
+ewald-rtol       = 1e-6     ; relative strength of the Ewald-shifted direct potential at rcoulomb
+epsilon_surface  = 0
+
+----------------------------------------------------
+; VDW
+;----------------------------------------------------
+vdw-type                = Cut-off
+rvdw                    = 1.0
+rvdw-switch             = 0.9
+vdw-modifier            = Potential-switch
+ewald-rtol-lj           = 1e-3
+DispCorr                = EnerPres
+
+
+;----------------------------------------------------
+; FREE ENERGY CALCULATIONS
+;----------------------------------------------------
+free-energy              = yes
+delta_lambda             = 0
+init_lambda_state        = YYY
+couple-intramol          = no
+separate-dhdl-file       = yes
+calc-lambda-neighbors    = -1
+sc-alpha                 = 0.5
+sc-power                 = 1
+sc-sigma		         = 0.3
+;molecule                = A    A    A    A    A    AB   AB   AB   AB   AB   AB   AB   AB   AB   AB    B    B    B    B
+;window                  = 0    1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18
+vdw-lambdas              = 0.00 0.00 0.00 0.00 0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00 1.00 1.00 1.00 1.00
+coul-lambdas             = 0.00 0.25 0.50 0.75 1.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.25 0.50 0.75 1.00

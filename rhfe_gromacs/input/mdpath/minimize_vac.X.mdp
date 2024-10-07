@@ -1,0 +1,87 @@
+;====================================================
+; Energy minimization
+;====================================================
+
+;----------------------------------------------------
+; RUN CONTROL & MINIMIZATION
+;----------------------------------------------------
+define                 = -DLIGAND_XXX
+integrator             = steep
+nsteps                 = 50000
+emtol                  = 100
+emstep                 = 0.01
+comm-mode              = Linear
+nstcomm                = 100
+
+;----------------------------------------------------
+; OUTPUT CONTROL
+;----------------------------------------------------
+nstxout                = 0          ; don't save coordinates to .trr
+nstvout                = 0          ; don't save velocities to .trr
+nstfout                = 0          ; don't save forces to .trr
+
+nstxout-compressed     = 500        ; xtc compressed trajectory output every 500 steps
+compressed-x-precision = 10000
+nstlog                 = 500        ; update log file every 500 steps
+nstenergy              = 500        ; save energies every 500 steps
+nstcalcenergy          = 100
+
+;----------------------------------------------------
+; NEIGHBOR SEARCHING
+;----------------------------------------------------
+cutoff-scheme          = verlet
+nstlist                = 10
+pbc                    = xyz
+rlist                  = 2
+
+;----------------------------------------------------
+; BONDS
+;----------------------------------------------------
+constraints            = h-bonds
+
+;----------------------------------------------------
+; ELECTROSTATICS
+;----------------------------------------------------
+coulombtype            = Cut-off
+rcoulomb               = 2
+rcoulomb-switch        = 0
+pme-order              = 4 
+fourierspacing         = 0.10
+ewald-rtol             = 1e-6
+ewald_geometry         = 3d
+epsilon_surface        = 0
+
+;----------------------------------------------------
+; VDW
+;----------------------------------------------------
+vdwtype                = Cut-off
+rvdw                   = 2
+rvdw-switch            = 1.8
+vdw-modifier           = Potential-switch
+DispCorr               = EnerPres
+
+;----------------------------------------------------
+; TEMPERATURE & PRESSURE COUPL
+;----------------------------------------------------
+tcoupl              = no
+pcoupl              = no
+gen_vel             = no
+
+;----------------------------------------------------
+; FREE ENERGY CALCULATIONS
+;----------------------------------------------------
+free-energy              = yes
+delta_lambda             = 0
+init_lambda_state        = YYY
+couple-intramol          = no
+nstdhdl                  = 5000
+separate-dhdl-file       = yes
+calc-lambda-neighbors    = -1
+sc-alpha                 = 0.5
+sc-power                 = 1
+sc-sigma		         = 0.3
+;molecule                = A    A    A    A    A    AB   AB   AB   AB   AB   AB   AB   AB   AB   AB    B    B    B    B
+;window                  = 0    1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18
+vdw-lambdas              = VVV
+coul-lambdas             = WWW
+bonded-lambdas           = VVV

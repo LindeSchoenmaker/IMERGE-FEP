@@ -1,0 +1,7 @@
+## Files for setting up RHFE runs in GROMACS
+
+Using develop branch of pmx.
+
+lig_topology for creating topology files based on molecule sdf & openff force field
+
+hybrid_top_dum.py for automatic decoupling of dummy atoms (takes merged topology file as input and changes angles & dihedrals as described in DOI: 10.1021/acs.jctc.0c01328)
