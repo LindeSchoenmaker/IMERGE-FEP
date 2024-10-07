@@ -51,7 +51,7 @@ class EnumRGroups():
         self.columns = ['R1']
         self.df = self.get_rgroups(self.enumerate_kekule)
         self.df_interm = self.enumerate_rgroups()
-        if "R2" in self.df_interm.keys():
+        if re.search('R[2-9]', ' '.join(self.df_interm.keys())):
             self.weld()
             self.clean_intermediates()
         elif self.permutate:
@@ -377,9 +377,11 @@ class EnumRGroups():
         tokens = []
         for index, row in self.df_interm.iterrows():
             mol = Chem.Mol(row[column])
-            Chem.SanitizeMol(mol)
             token = self.tokenize(Chem.MolToSmiles(mol))
             tokens.append(token)
+            # Chem.SanitizeMol(mol)
+            # token = self.tokenize(Chem.MolToSmiles(mol).upper())
+            # tokens.append(token)
         
         short_tokens = min(tokens, key=len)
         long_tokens = max(tokens, key=len)
@@ -413,7 +415,7 @@ class EnumRGroups():
                     if insert_small:
                         for to_insert in to_add:
                             # only insert tokens from small fragment when smaller than long fragment
-                            if len(subset) >= len(self.tokens) - len(to_insert): continue
+                            if len(subset) >= len(tokens) - len(to_insert): continue
                             for j in range(len(subset)):
                                 a = list(subset)
                                 a[j:j] = to_insert
