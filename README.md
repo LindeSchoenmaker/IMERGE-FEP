@@ -12,6 +12,8 @@ data - raw data used as input
 
 supplemental information - sdf files & visualization of molecules from the perturbations that were run
 
+figures - code for manuscript figures
+
 ## Installation
 use setup.py for creating the environment for the intermediate generation
 to run the rhfe gromacs scripts also install pmx, parmed, openff and openmm
