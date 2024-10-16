@@ -15,9 +15,20 @@ supplemental information - sdf files & visualization of molecules from the pertu
 figures - code for manuscript figures
 
 ## Installation
-use setup.py for creating the environment for the intermediate generation
+Use setup.py for creating the environment for the intermediate generation
+
+    pip install -e .
+
+Optionally, install dependencies for similarity scoring:
+
+    conda install openeye::openeye-toolkits
+    conda install conda-forge::lomap2
+
 to run the rhfe gromacs scripts also install pmx, parmed, openff and openmm
+
 download the benchmark ligands from: https://github.com/JenkeScheen/fep_intermediate_generation/tree/master/ligands
+
+gromacs version: gromacs/2022.1/gcc.8.4.0-cuda.11.7.1
 
 ## Generating intermediates for a molecular pair
 The functionality and use of the intermediate generator is shown the jupyter notebook rgroup_enumeration.ipynb

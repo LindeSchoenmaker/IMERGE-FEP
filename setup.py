@@ -25,6 +25,7 @@ setup(
         "matplotlib>=3.7",
         "seaborn>=0.12",
         "pillow>=10.1.0",
-        "rdkit>=2023.09.1",
+        "rdkit==2023.09.1",
+        "scipy>=1.14.1"
     ]
 )
