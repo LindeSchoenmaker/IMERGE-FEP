@@ -1,10 +1,11 @@
 import glob
+import json
+import math
 import os
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 from alchemlyb import concat as alchemlyb_concat
 from alchemlyb.convergence import forward_backward_convergence
 from alchemlyb.estimators import MBAR
@@ -28,6 +29,7 @@ dg_err_dict = defaultdict(lambda: defaultdict(dict))
 
 base_path = 'workpath_AB_B_2.1.1/results'
 edges = [os.path.basename(x) for x in glob.glob(f'{base_path}/*')]
+
 legs = ['vacuum', 'water']
 plot = False
 runs = ['run1', 'run2', 'run3']
@@ -69,10 +71,22 @@ for edge in edges:
         dg_err_dict[edge][leg]['average'] =  sum([dg_err_dict[edge][leg][run] for run in runs])/len(runs)
 
     ddg_dict[edge] = dg_dict[edge]['water']['average'] - dg_dict[edge]['vacuum']['average']
-    ddg_err_dict[edge] = dg_dict[edge]['water']['sd'] + dg_dict[edge]['vacuum']['sd']
+    ddg_err_dict[edge] = math.sqrt(dg_dict[edge]['water']['sd']**2 + dg_dict[edge]['vacuum']['sd']**2)
     ddg_mbar_err_dict[edge] = dg_err_dict[edge]['water']['average'] + dg_err_dict[edge]['vacuum']['average']
 
 
 print(ddg_dict)
 print(ddg_err_dict)
 print(ddg_mbar_err_dict)
+
+with open("ddg_err.json", "w") as outfile: 
+    json.dump(ddg_err_dict, outfile)
+
+with open("ddg.json", "w") as outfile: 
+    json.dump(ddg_dict, outfile)
+
+with open("dg.json", "w") as outfile: 
+    json.dump(dg_dict, outfile)
+
+with open("dg_err.json", "w") as outfile: 
+    json.dump(dg_err_dict, outfile)
