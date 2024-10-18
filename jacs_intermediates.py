@@ -1,4 +1,5 @@
 import glob
+import os
 import time
 from itertools import combinations
 
@@ -6,6 +7,14 @@ import pandas as pd
 from rdkit import Chem
 
 from rgroupinterm.rgroupenumeration import EnumRGroups
+
+# running this code requires downloading the fep benchmark set from https://github.com/JenkeScheen/fep_intermediate_generation
+if not os.path.exists('./fep_intermediate_generation'):
+    path  = "./" 
+    clone = "git clone https://github.com/JenkeScheen/fep_intermediate_generation.git" 
+
+    os.chdir(path) # Specifying the path where the cloned project needs to be copied
+    os.system(clone) # Cloning
 
 if __name__ == "__main__":
     df_comb = pd.DataFrame()
