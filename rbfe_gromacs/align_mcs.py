@@ -152,10 +152,10 @@ def main(ref, to_align, intermediates, reference_set=None):
 
 
 if __name__ == "__main__":
-    with open("rbfe_gromacs/input/rhfe_pairs.json") as file:
+    with open("input/rhfe_pairs.json") as file:
         lig_dict = json.load(file)
 
-    suppl = Chem.SDMolSupplier('rbfe_gromacs/input/ligands_cdk8.sdf')
+    suppl = Chem.SDMolSupplier('input/ligands_cdk8.sdf')
 
     for i in range(1, 8):
         # load molecules
@@ -177,7 +177,7 @@ if __name__ == "__main__":
 
         # write to file
         if sdf:
-            with Chem.SDWriter(f'rbfe_gromacs/input/ligands/aligned_{i}.sdf') as w:
+            with Chem.SDWriter(f'input/ligands/aligned_{i}.sdf') as w:
                 w.write(to_align)
                 for j in range(len(intermediates)):
                     w.write(intermediates[j])
