@@ -2,7 +2,7 @@ import glob
 import os
 import subprocess
 
-import jobscript
+import fep_code.jobscript as jobscript
 import numpy as np
 import pandas as pd
 from hybrid_top_ABcharge import process_file as process_file_ABcharge
@@ -443,6 +443,7 @@ class AZtutorial:
 
             # Ligand+Protein structure
             if 'protein' in self.thermCycleBranches:
+                self._protein = self._read_protein()
                 self._make_clean_pdb('{0}/{1}'.format(self.proteinPath,self.protein['str']),'{0}/init.pdb'.format(outProtPath))
                 self._make_clean_pdb('{0}/mergedA.pdb'.format(hybridStrTopPath),'{0}/init.pdb'.format(outProtPath),bAppend=True)
 
