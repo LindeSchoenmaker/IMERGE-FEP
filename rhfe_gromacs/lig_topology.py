@@ -1,3 +1,4 @@
+import argparse
 import os
 import re
 
@@ -5,6 +6,13 @@ import parmed as pmd
 from openff.toolkit import Molecule
 from openff.toolkit.typing.engines.smirnoff import ForceField
 from openmm import app
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-p",
+                    "--path",
+                    help="path to retrieve and save ligand files",
+                    type=str,
+                    default='{args.path}')
 
 
 def unique_atom_types(pmd_structure, name):
@@ -34,10 +42,11 @@ def unique_atom_types(pmd_structure, name):
 
 
 if __name__ == "__main__":
+    args = parser.parse_args()
     sets = range(1,8)
 
     for lig_set in sets:
-        ligands = Molecule.from_file(f'input/ligands/aligned_{lig_set}.sdf')
+        ligands = Molecule.from_file(f'{args.path}aligned_{lig_set}.sdf')
 
         # Load a forcefield
         lig_ff = ForceField('openff_unconstrained-2.1.1.offxml')
@@ -55,14 +64,14 @@ if __name__ == "__main__":
 
             new_ligand_struct = unique_atom_types(pmd_ligand_struct, ligand.name)
 
-            if not os.path.exists(f'input/ligands/lig_{ligand.name}'):
-                os.mkdir(f'input/ligands/lig_{ligand.name}')
+            if not os.path.exists(f'{args.path}lig_{ligand.name}'):
+                os.mkdir(f'{args.path}lig_{ligand.name}')
 
-            new_ligand_struct.save(f'input/ligands/lig_{ligand.name}/mol.top', overwrite=True)
-            new_ligand_struct.save(f'input/ligands/lig_{ligand.name}/mol_gmx.pdb',
+            new_ligand_struct.save(f'{args.path}lig_{ligand.name}/mol.top', overwrite=True)
+            new_ligand_struct.save(f'{args.path}lig_{ligand.name}/mol_gmx.pdb',
                                 overwrite=True)
 
-            with open(f'input/ligands/lig_{ligand.name}/mol_gmx.pdb', 'r+') as f:
+            with open(f'{args.path}lig_{ligand.name}/mol_gmx.pdb', 'r+') as f:
                 content = f.read()
                 content_new = re.sub('([A-Z]{1})(\d{1}|\d{2})(x)',
                                     r'\1\2 ',
@@ -72,7 +81,7 @@ if __name__ == "__main__":
                 f.seek(0)
                 f.write(content_new)
 
-            with open(f'input/ligands/lig_{ligand.name}/mol.top', 'r+') as f:
+            with open(f'{args.path}lig_{ligand.name}/mol.top', 'r+') as f:
                 content = f.read()
                 atomtypes = re.search(r'(\[ atomtypes \])((.|\n)*)',
                                     content).group().split('[ moleculetype ]')[0]
@@ -81,5 +90,5 @@ if __name__ == "__main__":
                 f.seek(0)
                 f.write(content_new)
 
-            with open(f'input/ligands/lig_{ligand.name}/ffMOL.itp', 'w') as f:
+            with open(f'{args.path}lig_{ligand.name}/ffMOL.itp', 'w') as f:
                 f.write(atomtypes)
