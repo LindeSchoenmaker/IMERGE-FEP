@@ -76,11 +76,12 @@ class AZtutorial:
             
     def prepareFreeEnergyDir( self ):
         
-        # protein={}
-        # protein[path] = [path], protein[str] = pdb, protein[itp] = [itp], protein[posre] = [posre]
-        # self.proteinPath = self._read_path( self.proteinPath )
-        # self._protein = self._read_protein()
-        
+        if 'protein' in self.thermCycleBranches:
+            # protein={}
+            # protein[path] = [path], protein[str] = pdb, protein[itp] = [itp], protein[posre] = [posre]
+            self.proteinPath = self._read_path( self.proteinPath )
+            self._protein = self._read_protein()
+            
         # read ligands
         self.ligandPath = self._read_path( self.ligandPath )
         self._read_ligands()
@@ -418,10 +419,12 @@ class AZtutorial:
             hybridStrTopPath = self._get_specific_path(edge=edge,bHybridStrTop=True)                    
             outWatPath = self._get_specific_path(edge=edge,wp='water')
             outVacPath = self._get_specific_path(edge=edge,wp='vacuum')
+            outProtPath = self._get_specific_path(edge=edge,wp='protein')
                         
             # Ligand structure
             self._make_clean_pdb('{0}/mergedA.pdb'.format(hybridStrTopPath),'{0}/init.pdb'.format(outWatPath))
-            self._make_clean_pdb('{0}/mergedA.pdb'.format(hybridStrTopPath),'{0}/init.pdb'.format(outVacPath))
+            if 'vacuum' in self.thermCycleBranches:
+                self._make_clean_pdb('{0}/mergedA.pdb'.format(hybridStrTopPath),'{0}/init.pdb'.format(outVacPath))
             
             # Ligand topology water
             # ffitp
@@ -437,12 +440,29 @@ class AZtutorial:
             itps = [ligFFitp,ligItp]
             systemName = 'ligand in water'
             self._create_top(fname=ligTopFname,itp=itps,systemName=systemName)
+
+            # Ligand+Protein structure
+            if 'protein' in self.thermCycleBranches:
+                self._make_clean_pdb('{0}/{1}'.format(self.proteinPath,self.protein['str']),'{0}/init.pdb'.format(outProtPath))
+                self._make_clean_pdb('{0}/mergedA.pdb'.format(hybridStrTopPath),'{0}/init.pdb'.format(outProtPath),bAppend=True)
+
+                # Ligand+Protein topology
+                # top
+                protTopFname = '{0}/topol.top'.format(outProtPath)
+                mols = []
+                for m in self.protein['mols']:
+                    mols.append([m,1])
+                mols.append(['MOL',1])
+                itps.extend(self.protein['itp'])
+                systemName = 'protein and ligand in water'
+                self._create_top(fname=protTopFname,itp=itps,mols=mols,systemName=systemName)            
             
-            # Ligand topology vacuum
-            # top
-            vacTopFname = '{0}/topol.top'.format(outVacPath)
-            systemName = 'ligand in vacuum'
-            self._create_top(fname=vacTopFname,itp=itps,systemName=systemName, vacuum=True)            
+            if 'vacuum' in self.thermCycleBranches:
+                # Ligand topology vacuum
+                # top
+                vacTopFname = '{0}/topol.top'.format(outVacPath)
+                systemName = 'ligand in vacuum'
+                self._create_top(fname=vacTopFname,itp=itps,systemName=systemName, vacuum=True)            
         print('DONE')            
         
             
@@ -478,8 +498,8 @@ class AZtutorial:
         for clean in toclean:
             os.remove(clean)        
     
-    def boxWaterIons( self, edges=None, bBoxLig=True, bWatLig=True,
-                                        bIonLig=True):
+    def boxWaterIons( self, edges=None, bBoxLig=True, bBoxProt=False, bWatLig=True,
+                                        bWatProt=False, bIonLig=True, bIonProt=False):
         print('----------------')
         print('Box, water, ions')
         print('----------------')
@@ -491,6 +511,7 @@ class AZtutorial:
             # edge = f'edge_{edge_names[0]}_{edge_names[1]}'       
             outWatPath = self._get_specific_path(edge=edge,wp='water')
             outVacPath = self._get_specific_path(edge=edge,wp='vacuum')
+            outProtPath = self._get_specific_path(edge=edge,wp='protein')
             
             # box ligand
             if bBoxLig==True:
@@ -498,12 +519,17 @@ class AZtutorial:
                 outStr = '{0}/box.pdb'.format(outWatPath)
                 gmx.editconf(inStr, o=outStr, bt=self.boxshape, d=self.boxd, other_flags='') 
 
-            # box ligand
-            if bBoxLig==True:
-                inStr = '{0}/init.pdb'.format(outVacPath)
-                outStr = '{0}/final.pdb'.format(outVacPath)
-                gmx.editconf(inStr, o=outStr, bt=self.boxshape, d=self.boxd, other_flags='') 
+            # box ligand vacuum
+            inStr = '{0}/init.pdb'.format(outVacPath)
+            outStr = '{0}/final.pdb'.format(outVacPath)
+            gmx.editconf(inStr, o=outStr, bt=self.boxshape, d=self.boxd, other_flags='') 
             
+            # box protein
+            if bBoxProt==True:            
+                inStr = '{0}/init.pdb'.format(outProtPath)
+                outStr = '{0}/box.pdb'.format(outProtPath)
+                gmx.editconf(inStr, o=outStr, bt=self.boxshape, d=self.boxd, other_flags='')
+           
             # prepare files for energy minimization
             mdp = '{0}/minimize_vac.0.mdp'.format(self.mdpPath)     
             inStr = '{0}/final.pdb'.format(outVacPath)
@@ -527,14 +553,12 @@ class AZtutorial:
                 top = '{0}/topol.top'.format(outWatPath)
                 gmx.solvate(inStr, cs='spc216.gro', p=top, o=outStr)
             
-            else:
-                # prepare files for energy minimization
-                mdp = '{0}/minimize_vac.0.mdp'.format(self.mdpPath)     
-                inStr = '{0}/final.pdb'.format(outVacPath)
-                top = '{0}/topol.top'.format(outVacPath)
-                tpr = '{0}/tpr.tpr'.format(outVacPath)
-                mdout = '{0}/mdout.mdp'.format(outVacPath)
-                gmx.grompp(f=mdp, c=inStr, p=top, o=tpr, maxwarn=4, other_flags=' -po {0}'.format(mdout))
+            # water protein
+            if bWatProt==True:            
+                inStr = '{0}/box.pdb'.format(outProtPath)
+                outStr = '{0}/final.pdb'.format(outProtPath)
+                top = '{0}/topol.top'.format(outProtPath)
+                gmx.solvate(inStr, cs='spc216.gro', p=top, o=outStr)  
            
             # # ions ligand
             # if bIonLig:
@@ -572,7 +596,7 @@ class AZtutorial:
         if simType=='equil_npt':
             mdp = '{0}/{1}.{2}.mdp'.format(self.mdpPath,mdpPrefix, state)
         elif simType in ['em', 'equil_nvt', 'production']:
-            if 'water' in simpath:
+            if 'water' in simpath or 'protein' in simpath:
                 mdp = '{0}/{1}_wat.{2}.mdp'.format(self.mdpPath,mdpPrefix, state)
             else:
                 mdp = '{0}/{1}_vac.{2}.mdp'.format(self.mdpPath,mdpPrefix, state)
@@ -594,7 +618,7 @@ class AZtutorial:
         self._clean_backup_files( simpath )
                     
          
-    def prepare_simulation( self, edges=None, simType='em', bWat=True, bVac=True ):
+    def prepare_simulation( self, edges=None, simType='em', bWat=True, bVac=True, bProt=False ):
         print('-----------------------------------------')
         print('Preparing simulation: {0}'.format(simType))
         print('-----------------------------------------')
@@ -605,7 +629,8 @@ class AZtutorial:
             print(edge)
             # edge = f'edge_{edge_names[0]}_{edge_names[1]}'
             ligTopPath = self._get_specific_path(edge=edge,wp='water')
-            vacTopPath = self._get_specific_path(edge=edge,wp='vacuum')            
+            vacTopPath = self._get_specific_path(edge=edge,wp='vacuum') 
+            protTopPath = self._get_specific_path(edge=edge,wp='protein')            
             
             for state in self.states:
                 for r in range(1,self.replicas+1):
@@ -619,6 +644,15 @@ class AZtutorial:
                             toppath = ligTopPath
                             self._prepare_single_tpr( simpath, toppath, state, simType, prevpath )
                     
+                    # protein
+                    if bProt==True:
+                        wp = 'protein'
+                        simpath = self._get_specific_path(edge=edge,wp=wp,state=state,r=r,sim=simType)
+                        if not os.path.isfile(f'{simpath}/tpr.tpr'): 
+                            prevpath = self._get_specific_path(edge=edge,wp=wp,state=state,r=r)
+                            toppath = protTopPath
+                            self._prepare_single_tpr( simpath, toppath, state, simType, prevpath )    
+
                     # ligand in vacuum
                     if bVac==True and simType != 'equil_npt':
                         wp = 'vacuum'
@@ -700,7 +734,7 @@ class AZtutorial:
                         self._clean_backup_files( simpath )
         print('DONE')
  
-    def prepare_jobscripts( self, edges=None, simType='em', bWat=True, bVac=True ):
+    def prepare_jobscripts( self, edges=None, simType='em', bWat=True, bVac=True, bProt=False ):
         print('---------------------------------------------')
         print('Preparing jobscripts for: {0}'.format(simType))
         print('---------------------------------------------')
@@ -741,7 +775,31 @@ class AZtutorial:
                                 self._commands_for_transitions( simpath, job )
                             job.create_jobscript()
                             counter+=1    
-                            
+
+                    # protein
+                    if bProt==True:
+                        wp = 'protein'
+                        simpath = self._get_specific_path(edge=edge,wp=wp,state=state,r=r,sim=simType)
+                        create_jobscript = False
+                        if not os.path.isfile(f'{simpath}/confout.gro'):
+                            create_jobscript = True
+                        elif simType == "production" and os.stat(f'{simpath}/dhdl.xvg').st_size == 0:
+                            create_jobscript = True
+
+                        if create_jobscript:
+                            jobfile = '{0}/jobscript{1}'.format(jobfolder,counter)
+                            jobname = 'prot_{0}_{1}_{2}_{3}'.format(edge,state,r,simType)
+                            job = jobscript.Jobscript(fname=jobfile,
+                                        queue=self.JOBqueue,simcpu=self.JOBsimcpu,simtime=self.JOBsimtime,
+                                        jobname=jobname,modules=self.JOBmodules,source=self.JOBsource,
+                                        gmx=self.JOBgmx, partition=self.JOBpartition,export=self.JOBexport)
+                            cmd1 = 'cd {0}'.format(simpath)
+                            cmd2 = '$GMXRUN -s tpr.tpr'
+                            job.cmds = [cmd1,cmd2]                        
+                            if simType=='transition':
+                                self._commands_for_transitions( simpath, job )
+                            job.create_jobscript()
+                            counter+=1         
                     
                     # ligand in vac
                     if bVac==True and simType != 'equil_npt':
