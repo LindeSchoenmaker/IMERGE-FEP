@@ -85,9 +85,9 @@ if __name__ == "__main__":
     # set the number of replicas (several repetitions of calculation are useful to obtain reliable statistics)
     fe.replicas = args.num_replicas
     # provide the path to the protein structure and topology
-    fe.proteinPath = 'input/protein_amber'
+    fe.proteinPath = 'rbfe_gromcacs/input/protein_amber'
     # provide the path to the folder with ligand structures and topologies
-    fe.ligandPath = 'rbfe_gromacs/input/ligands'
+    fe.ligandPath = 'rbfe_gromcacs/input/ligands'
     # provide edges
     if args.ligands:
         if len(args.ligands) == 1:
