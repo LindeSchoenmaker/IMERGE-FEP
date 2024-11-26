@@ -2,7 +2,8 @@ import argparse
 import itertools
 
 import pmx
-from AZtutorial import AZtutorial
+
+from rhfe_gromacs.AZtutorial import AZtutorial
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-o",
@@ -110,7 +111,7 @@ if __name__ == "__main__":
 
     fe.JOBsimtime = args.JOBsimtime
 
-    fe.thermCycleBranches = ['water','protein']
+    fe.thermCycleBranches = ['protein']
     #TODO increase
     fe.boxd = 2
 
