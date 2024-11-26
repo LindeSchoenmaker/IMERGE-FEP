@@ -2,16 +2,16 @@ import glob
 import os
 
 if __name__ == "__main__":
-    protocols = [os.path.basename(x).split('.')[0] for x in glob.glob('input/mdppath/*.X.mdp')]
-
+    protocols = [os.path.basename(x).split('.')[0] for x in glob.glob('rhfe_gromacs/input/mdpath/*.X.mdp')]
+    print(protocols)
     for protocol in protocols:
-        template = f'input/mdppath/{protocol}.X.mdp'
+        template = f'rhfe_gromacs/input/mdpath/{protocol}.X.mdp'
 
         with open(template, 'r') as f:
             content = f.read()
 
         for i in range(20):
-            with open(f'input/mdppath/files/{protocol}.{i}.mdp', 'w') as f:
+            with open(f'rhfe_gromacs/input/mdpath/files/{protocol}.{i}.mdp', 'w') as f:
                 if i <= 14:
                     content_new = content.replace('XXX', 'AB')
                     vdw = '0.00 0.00 0.00 0.00 0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00'
