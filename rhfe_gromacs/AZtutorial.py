@@ -2,11 +2,11 @@ import glob
 import os
 import subprocess
 
-import jobscript
+import rhfe_gromacs.jobscript as jobscript
 import numpy as np
 import pandas as pd
-from hybrid_top_ABcharge import process_file as process_file_ABcharge
-from hybrid_top_dum import process_file as process_file_decouple
+from rhfe_gromacs.hybrid_top_ABcharge import process_file as process_file_ABcharge
+from rhfe_gromacs.hybrid_top_dum import process_file as process_file_decouple
 from pmx import gmx, ligand_alchemy
 from pmx.utils import create_folder
 

@@ -87,7 +87,7 @@ if __name__ == "__main__":
     # provide the path to the protein structure and topology
     fe.proteinPath = 'input/protein_amber'
     # provide the path to the folder with ligand structures and topologies
-    fe.ligandPath = 'input/ligands'
+    fe.ligandPath = 'rbfe_gromacs/input/ligands'
     # provide edges
     if args.ligands:
         if len(args.ligands) == 1:
