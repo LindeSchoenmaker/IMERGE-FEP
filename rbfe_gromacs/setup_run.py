@@ -97,6 +97,8 @@ if __name__ == "__main__":
     elif args.edges:
         edges = [list(edge.split("_"))  for edge in args.edges]
         fe.edges = edges
+    
+    fe.thermCycleBranches = ['protein']
     # finally, let's prepare the overall free energy calculation directory structure
     fe.prepareFreeEnergyDir( )
 
@@ -111,7 +113,7 @@ if __name__ == "__main__":
 
     fe.JOBsimtime = args.JOBsimtime
 
-    fe.thermCycleBranches = ['protein']
+    
     #TODO increase
     fe.boxd = 2
 
