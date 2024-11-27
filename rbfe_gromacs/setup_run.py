@@ -115,7 +115,7 @@ if __name__ == "__main__":
 
     
     #TODO increase
-    fe.boxd = 2
+    fe.boxd = 3
 
 
     if args.output == 'initial':
