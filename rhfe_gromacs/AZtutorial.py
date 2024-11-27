@@ -2,13 +2,14 @@ import glob
 import os
 import subprocess
 
-import rhfe_gromacs.jobscript as jobscript
 import numpy as np
 import pandas as pd
-from rhfe_gromacs.hybrid_top_ABcharge import process_file as process_file_ABcharge
-from rhfe_gromacs.hybrid_top_dum import process_file as process_file_decouple
 from pmx import gmx, ligand_alchemy
 from pmx.utils import create_folder
+
+import rhfe_gromacs.jobscript as jobscript
+from rhfe_gromacs.hybrid_top_ABcharge import process_file as process_file_ABcharge
+from rhfe_gromacs.hybrid_top_dum import process_file as process_file_decouple
 
 
 class AZtutorial:
@@ -529,7 +530,7 @@ class AZtutorial:
             if bBoxProt==True:            
                 inStr = '{0}/init.pdb'.format(outProtPath)
                 outStr = '{0}/box.pdb'.format(outProtPath)
-                gmx.editconf(inStr, o=outStr, bt=self.boxshape, d=self.boxd, other_flags='')
+                gmx.editconf(inStr, o=outStr, bt=self.boxshape, d=self.boxd, other_flags='-c')
            
             # prepare files for energy minimization
             mdp = '{0}/minimize_vac.0.mdp'.format(self.mdpPath)     
