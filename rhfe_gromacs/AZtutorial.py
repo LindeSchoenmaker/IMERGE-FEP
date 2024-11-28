@@ -460,12 +460,11 @@ class AZtutorial:
                 systemName = 'protein and ligand in water'
                 self._create_top(fname=protTopFname,itp=itps,mols=mols,systemName=systemName)            
             
-            if 'vacuum' in self.thermCycleBranches:
-                # Ligand topology vacuum
-                # top
-                vacTopFname = '{0}/topol.top'.format(outVacPath)
-                systemName = 'ligand in vacuum'
-                self._create_top(fname=vacTopFname,itp=itps,systemName=systemName, vacuum=True)            
+            # Ligand topology vacuum
+            # top
+            vacTopFname = '{0}/topol.top'.format(outVacPath)
+            systemName = 'ligand in vacuum'
+            self._create_top(fname=vacTopFname,itp=itps,systemName=systemName, vacuum=True)            
         print('DONE')            
         
             
