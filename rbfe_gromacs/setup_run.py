@@ -131,8 +131,8 @@ if __name__ == "__main__":
         fe.boxWaterIons(bBoxProt=True, bWatProt=True, bIonProt=True)
 
         #prepare simulation
-        fe.prepare_simulation( simType='em', bVac=False, bProt=True)
-        fe.prepare_jobscripts(simType='em', bVac=False, bProt=True)
+        fe.prepare_simulation( simType='em', bVac=False, bProt=True, bWat=False)
+        fe.prepare_jobscripts(simType='em', bVac=False, bProt=True, bWat=False)
     elif args.output in ['em', 'equil_nvt', 'equil_npt', 'production']:
         fe.prepare_simulation( simType=args.output, bVac=False, bProt=True)
         fe.prepare_jobscripts(simType=args.output, bVac=False, bProt=True)
