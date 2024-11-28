@@ -207,7 +207,7 @@ class AZtutorial:
             create_folder(hybridTopFolder)
             
             # water/vacuum
-            wps = set(['water'])
+            wps = set(['vacuum', 'water'])
             wps.update(self.thermCycleBranches)
             for wp in wps:
                 wppath = '{0}/{1}'.format(edgepath,wp)
@@ -426,8 +426,7 @@ class AZtutorial:
                         
             # Ligand structure
             self._make_clean_pdb('{0}/mergedA.pdb'.format(hybridStrTopPath),'{0}/init.pdb'.format(outWatPath))
-            if 'vacuum' in self.thermCycleBranches:
-                self._make_clean_pdb('{0}/mergedA.pdb'.format(hybridStrTopPath),'{0}/init.pdb'.format(outVacPath))
+            self._make_clean_pdb('{0}/mergedA.pdb'.format(hybridStrTopPath),'{0}/init.pdb'.format(outVacPath))
             
             # Ligand topology water
             # ffitp
