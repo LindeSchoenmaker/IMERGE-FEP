@@ -573,6 +573,7 @@ class AZtutorial:
                 gmx.grompp(f=mdp, c=inStr, p=top, o=tpr, maxwarn=4, other_flags=' -po {0}'.format(mdout))        
                 gmx.genion(s=tpr, p=top, o=outStr, conc=self.conc, neutral=True, 
                       other_flags=' -pname {0} -nname {1}'.format(self.pname, self.nname))  
+                gmx.trjconv(s=tpr,f=outStr, sep=True, ur='compact', pbc='mol')
            
             # clean backed files
             self._clean_backup_files( outWatPath )
