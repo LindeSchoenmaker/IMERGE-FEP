@@ -501,7 +501,7 @@ class AZtutorial:
             os.remove(clean)        
     
     def boxWaterIons( self, edges=None, bBoxLig=True, bBoxProt=False, bWatLig=True,
-                                        bWatProt=False, bIonLig=True, bIonProt=False):
+                                        bWatProt=False, bIonLig=True, bIonProt=True):
         print('----------------')
         print('Box, water, ions')
         print('----------------')
@@ -558,21 +558,21 @@ class AZtutorial:
             # water protein
             if bWatProt==True:            
                 inStr = '{0}/box.pdb'.format(outProtPath)
-                outStr = '{0}/final.pdb'.format(outProtPath)
+                outStr = '{0}/water.pdb'.format(outProtPath)
                 top = '{0}/topol.top'.format(outProtPath)
                 gmx.solvate(inStr, cs='spc216.gro', p=top, o=outStr)  
            
-            # # ions ligand
-            # if bIonLig:
-            #     inStr = '{0}/water.pdb'.format(outWatPath)
-            #     outStr = '{0}/final.pdb'.format(outWatPath)
-            #     mdp = '{0}/minimize.0.mdp'.format(self.mdpPath)
-            #     tpr = '{0}/tpr.tpr'.format(outWatPath)
-            #     top = '{0}/topol.top'.format(outWatPath)
-            #     mdout = '{0}/mdout.mdp'.format(outWatPath)
-            #     gmx.grompp(f=mdp, c=inStr, p=top, o=tpr, maxwarn=4, other_flags=' -po {0}'.format(mdout))        
-            #     gmx.genion(s=tpr, p=top, o=outStr, conc=self.conc, neutral=True, 
-            #           other_flags=' -pname {0} -nname {1}'.format(self.pname, self.nname))
+            # ions protein
+            if bIonProt:
+                inStr = '{0}/water.pdb'.format(outProtPath)
+                outStr = '{0}/final.pdb'.format(outProtPath)
+                mdp = '{0}/minimize_wat.0.mdp'.format(self.mdpPath)
+                tpr = '{0}/tpr.tpr'.format(outProtPath)
+                top = '{0}/topol.top'.format(outProtPath)
+                mdout = '{0}/mdout.mdp'.format(outProtPath)
+                gmx.grompp(f=mdp, c=inStr, p=top, o=tpr, maxwarn=4, other_flags=' -po {0}'.format(mdout))        
+                gmx.genion(s=tpr, p=top, o=outStr, conc=self.conc, neutral=True, 
+                      other_flags=' -pname {0} -nname {1}'.format(self.pname, self.nname))  
            
             # clean backed files
             self._clean_backup_files( outWatPath )

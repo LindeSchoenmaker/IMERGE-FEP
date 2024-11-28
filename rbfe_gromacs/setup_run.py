@@ -117,6 +117,7 @@ if __name__ == "__main__":
     #TODO increase
     fe.boxd = 3
     fe.boxshape = 'cubic'
+    fe.conc = 0
 
 
     if args.output == 'initial':
