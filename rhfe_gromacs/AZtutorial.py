@@ -207,8 +207,8 @@ class AZtutorial:
             create_folder(hybridTopFolder)
             
             # water/vacuum
-            base = set('water')
-            wps = base.update(self.thermCycleBranches)
+            wps = set('water')
+            wps.update(self.thermCycleBranches)
             for wp in wps:
                 wppath = '{0}/{1}'.format(edgepath,wp)
                 create_folder(wppath)
