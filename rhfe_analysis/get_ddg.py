@@ -98,6 +98,8 @@ if __name__ == "__main__":
                 plot_convergence(df, ax=axs[1,0], units = 'kJ/mol')
                 plot_mbar_overlap_matrix(mbar_B.overlap_matrix, ax=axs[1,1])
 
+                if not os.path.exists('figure'):
+                    os.makedirs('figure')
                 fig.savefig(f'figure/{edge}_{leg}.png')
             dg_dict[edge][leg]['average'] =  sum([dg_dict[edge][leg][run][-1] for run in runs])/len(runs)
             dg_dict[edge][leg]['sd'] =  np.std([dg_dict[edge][leg][run][-1] for run in runs])
