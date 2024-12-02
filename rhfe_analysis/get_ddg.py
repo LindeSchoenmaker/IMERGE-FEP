@@ -55,7 +55,7 @@ if __name__ == "__main__":
     dg_err_dict = defaultdict(lambda: defaultdict(dict))
 
     base_path = args.path
-    edges = [os.path.basename(x) for x in glob.glob(f'{base_path}/*') if x.startswith('edge')]
+    edges = [os.path.basename(x) for x in glob.glob(f'{base_path}/*') if 'edge' in x]
 
     condition = args.condition # ['vacuum', 'water']
     if condition == 'rhfe':
