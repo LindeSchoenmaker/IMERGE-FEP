@@ -573,9 +573,10 @@ class AZtutorial:
                 gmx.grompp(f=mdp, c=inStr, p=top, o=tpr, maxwarn=4, other_flags=' -po {0}'.format(mdout))        
                 gmx.genion(s=tpr, p=top, o=outStr, conc=self.conc, neutral=True, 
                       other_flags=' -pname {0} -nname {1}'.format(self.pname, self.nname))  
-                trajout = '{0}/traj.xtc'.format(outProtPath)
-                gmx.grompp(f=mdp, c=outStr, p=top, o=tpr, maxwarn=4, other_flags=' -po {0}'.format(mdout))
-                gmx.trjconv(s=tpr,f=outStr, o=trajout, sep=True, ur='compact', pbc='mol')
+                # for visualizing final output centered
+                # trajout = '{0}/traj.xtc'.format(outProtPath)
+                # gmx.grompp(f=mdp, c=outStr, p=top, o=tpr, maxwarn=4, other_flags=' -po {0}'.format(mdout))
+                # gmx.trjconv(s=tpr,f=outStr, o=trajout, sep=True, ur='compact', pbc='mol')
            
             # clean backed files
             self._clean_backup_files( outWatPath )
@@ -614,7 +615,7 @@ class AZtutorial:
         elif simType=='equil_npt':
             inStr = '{0}/{1}/confout.gro'.format(prevpath, 'equil_nvt')
         elif simType=='production':
-            if 'water' in simpath:
+            if 'water' in simpath or 'protein' in simpath:
                 inStr = '{0}/{1}/confout.gro'.format(prevpath, 'equil_npt')
             else:
                 inStr = '{0}/{1}/confout.gro'.format(prevpath, 'equil_nvt')
