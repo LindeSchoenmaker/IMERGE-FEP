@@ -71,6 +71,7 @@ class AZtutorial:
         self.JOBgmx = 'gmx_mpi mdrun'
         self.JOBpartition = 'free-gpu'
         self.JOBsimtime = 3
+        self.accountname = None
 
         for key, val in kwargs.items():
             setattr(self,key,val)
@@ -773,7 +774,7 @@ class AZtutorial:
                             job = jobscript.Jobscript(fname=jobfile,
                                         queue=self.JOBqueue,simcpu=self.JOBsimcpu,simtime=self.JOBsimtime,
                                         jobname=jobname,modules=self.JOBmodules,source=self.JOBsource,
-                                        gmx=self.JOBgmx, partition=self.JOBpartition,export=self.JOBexport)
+                                        gmx=self.JOBgmx, partition=self.JOBpartition,export=self.JOBexport,accounname=self.accountname)
                             cmd1 = 'cd {0}'.format(simpath)
                             cmd2 = '$GMXRUN -s tpr.tpr'
                             job.cmds = [cmd1,cmd2]                        

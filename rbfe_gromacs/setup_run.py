@@ -68,7 +68,16 @@ parser.add_argument(
     '--decouple',
     help="decouple bonded interactions",
     action='store_true')
-
+parser.add_argument(
+    '-local',
+    '--local',
+    help="if set run locally instead of in slurm queue",
+    action='store_true')
+parser.add_argument("-a",
+                "--accountname",
+                help="when using slurm, which account name to use",
+                default = None
+                type=str)
 
 if __name__ == "__main__":
     print(pmx.__version__)
@@ -102,19 +111,23 @@ if __name__ == "__main__":
     # finally, let's prepare the overall free energy calculation directory structure
     fe.prepareFreeEnergyDir( )
 
-    # set several parameters
-    fe.JOBqueue = 'SLURM'
-    fe.JOBsource = ['/etc/profile.d/modules.sh'] #,'/zfsdata/software/gromacs/2020.4/bin/GMXRC']
-    fe.JOBmodules = ['gromacs/2022.1/gcc.8.4.0-cuda.11.7.1'] #['shared',' gmx_mpi','cuda11']
-    fe.JOBexport = ['OMP_NUM_THREADS=8']
-    fe.JOBgpu = True
-    fe.JOBgmx = 'gmx mdrun'
-    fe.JOBpartition = args.JOBpartition
+    if args.local:
+        print('running locally')
+        fe.JOBgmx = 'gmx_mpi mdrun'
+    else:
+        # set several parameters
+        fe.JOBqueue = 'SLURM'
+        fe.JOBsource = ['/etc/profile.d/modules.sh'] #,'/zfsdata/software/gromacs/2020.4/bin/GMXRC']
+        fe.JOBmodules = ['gromacs/2022.1/gcc.8.4.0-cuda.11.7.1'] #['shared',' gmx_mpi','cuda11']
+        fe.JOBexport = ['OMP_NUM_THREADS=8']
+        fe.JOBgpu = True
+        fe.JOBgmx = 'gmx mdrun'
+        fe.JOBpartition = args.JOBpartition
+        fe.accountname = args.accountname
 
-    fe.JOBsimtime = args.JOBsimtime
+        fe.JOBsimtime = args.JOBsimtime
 
-    
-    #TODO increase
+
     fe.boxd = 2
     fe.conc = 0
 
@@ -132,7 +145,15 @@ if __name__ == "__main__":
 
         #prepare simulation
         fe.prepare_simulation( simType='em', bVac=False, bProt=True, bWat=False)
-        fe.prepare_jobscripts(simType='em', bVac=False, bProt=True, bWat=False)
+        if args.local:
+            print('running')
+            # fe.run_simulation_locally(simType='em', bVac=False, bProt=True, bWat=False)
+        else:
+            fe.prepare_jobscripts(simType='em', bVac=False, bProt=True, bWat=False)
     elif args.output in ['em', 'equil_nvt', 'equil_npt', 'production']:
         fe.prepare_simulation( simType=args.output, bVac=False, bProt=True, bWat=False)
-        fe.prepare_jobscripts(simType=args.output, bVac=False, bProt=True, bWat=False)
+        if args.local:
+            print('running')
+            # fe.run_simulation_locally(simType=args.output, bVac=False, bProt=True, bWat=False)
+        else:
+            fe.prepare_jobscripts(simType=args.output, bVac=False, bProt=True, bWat=False)
