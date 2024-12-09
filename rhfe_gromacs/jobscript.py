@@ -63,6 +63,7 @@ class Jobscript:
         self.header = ''
         self.cmdline = ''
         self.partition = ''
+        self.accountname = ''
         
         for key, val in kwargs.items():
             setattr(self,key,val)                 
@@ -168,7 +169,7 @@ class Jobscript:
 {export}
 
 {gmx}
-'''.format(jobname=self.jobname,simcpu=self.simcpu,simtime=self.simtime,partition=partition,
+'''.format(jobname=self.jobname, accountname=self.accountname, simcpu=self.simcpu,simtime=self.simtime,partition=partition,
            gpu=gpu,source=sourceline,modules=moduleline,export=exportline,
            gmx=gmxline)
 

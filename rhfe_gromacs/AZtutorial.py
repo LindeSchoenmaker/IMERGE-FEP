@@ -774,7 +774,7 @@ class AZtutorial:
                             job = jobscript.Jobscript(fname=jobfile,
                                         queue=self.JOBqueue,simcpu=self.JOBsimcpu,simtime=self.JOBsimtime,
                                         jobname=jobname,modules=self.JOBmodules,source=self.JOBsource,
-                                        gmx=self.JOBgmx, partition=self.JOBpartition,export=self.JOBexport,accounname=self.accountname)
+                                        gmx=self.JOBgmx, partition=self.JOBpartition,export=self.JOBexport,accountname=self.accountname)
                             cmd1 = 'cd {0}'.format(simpath)
                             cmd2 = '$GMXRUN -s tpr.tpr'
                             job.cmds = [cmd1,cmd2]                        
@@ -799,9 +799,12 @@ class AZtutorial:
                             job = jobscript.Jobscript(fname=jobfile,
                                         queue=self.JOBqueue,simcpu=self.JOBsimcpu,simtime=self.JOBsimtime,
                                         jobname=jobname,modules=self.JOBmodules,source=self.JOBsource,
-                                        gmx=self.JOBgmx, partition=self.JOBpartition,export=self.JOBexport)
+                                        gmx=self.JOBgmx, partition=self.JOBpartition,export=self.JOBexport,accountname=self.accountname)
                             cmd1 = 'cd {0}'.format(simpath)
-                            cmd2 = '$GMXRUN -s tpr.tpr'
+                            if not os.path.isfile(f'{simpath}/state.cpt'):
+                                cmd2 = '$GMXRUN -s tpr.tpr'
+                            else:
+                                cmd2 = '$GMXRUN -cpi state -s tpr.tpr'
                             job.cmds = [cmd1,cmd2]                        
                             if simType=='transition':
                                 self._commands_for_transitions( simpath, job )
@@ -824,7 +827,7 @@ class AZtutorial:
                             job = jobscript.Jobscript(fname=jobfile,
                                             queue=self.JOBqueue,simcpu=self.JOBsimcpu,simtime=self.JOBsimtime,
                                             jobname=jobname,modules=self.JOBmodules,source=self.JOBsource,
-                                            gmx=self.JOBgmx, partition=self.JOBpartition,export=self.JOBexport)
+                                            gmx=self.JOBgmx, partition=self.JOBpartition,export=self.JOBexport,accountname=self.accountname)
                             cmd1 = 'cd {0}'.format(simpath)
                             cmd2 = '$GMXRUN -s tpr.tpr'
                             job.cmds = [cmd1,cmd2]
