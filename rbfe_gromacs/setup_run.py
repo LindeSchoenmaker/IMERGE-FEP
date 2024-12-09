@@ -76,7 +76,7 @@ parser.add_argument(
 parser.add_argument("-a",
                 "--accountname",
                 help="when using slurm, which account name to use",
-                default = None
+                default = None,
                 type=str)
 
 if __name__ == "__main__":
@@ -117,8 +117,8 @@ if __name__ == "__main__":
     else:
         # set several parameters
         fe.JOBqueue = 'SLURM'
-        fe.JOBsource = ['/home/lschoenmake/software/gromacs/2022.1/bin/GMXRC'] #['/etc/profile.d/modules.sh'] #,'/zfsdata/software/gromacs/2020.4/bin/GMXRC']
-        fe.JOBmodules = ['2024', 'OpenMPI/5.0.3-GCC-13.3.0', 'cuDNN/9.5.0.50-CUDA-12.6.0']#['gromacs/2022.1/gcc.8.4.0-cuda.11.7.1'] #['shared',' gmx_mpi','cuda11']
+        fe.JOBsource = ['/etc/profile.d/modules.sh'] #,'/zfsdata/software/gromacs/2020.4/bin/GMXRC']
+        fe.JOBmodules = ['gromacs/2022.1/gcc.8.4.0-cuda.11.7.1'] #['shared',' gmx_mpi','cuda11']
         fe.JOBexport = ['OMP_NUM_THREADS=8']
         fe.JOBgpu = True
         fe.JOBgmx = 'gmx mdrun'
