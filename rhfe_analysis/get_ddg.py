@@ -34,7 +34,10 @@ parser.add_argument("-r",
                     help="which runs to use",
                     default=['run1', 'run2', 'run3'],
                     nargs='+')
-
+parser.add_argument("-e",
+                    "--edges",
+                    help="which edges to use",
+                    nargs='+')
 
 def get_dg(df):
     """Read dg from result table and convert from kJ to kCal"""
@@ -55,7 +58,10 @@ if __name__ == "__main__":
     dg_err_dict = defaultdict(lambda: defaultdict(dict))
 
     base_path = args.path
-    edges = [os.path.basename(x) for x in glob.glob(f'{base_path}/*') if 'edge' in x]
+    if args.edges:
+        edges = args.edges
+    else:
+        edges = [os.path.basename(x) for x in glob.glob(f'{base_path}/*') if 'edge' in x]
 
     condition = args.condition # ['vacuum', 'water']
     if condition == 'rhfe':
